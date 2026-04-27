@@ -25,6 +25,11 @@ services:
       context: ..
       dockerfile: apps/bot/Dockerfile
     env_file: ../apps/bot/.env
+    environment:
+      # Compose-internal override: inside the container, "postgres" resolves
+      # via the compose network. The env_file's DATABASE_URL uses "localhost"
+      # so `pnpm dev` (host-side) keeps working without a second .env file.
+      DATABASE_URL: postgresql://${POSTGRES_USER:-bot}:${POSTGRES_PASSWORD:-bot}@postgres:5432/${POSTGRES_DB:-discord_bot}?schema=public
     restart: unless-stopped
     depends_on:
       postgres:

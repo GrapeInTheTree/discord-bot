@@ -21,21 +21,26 @@ COPY packages/database/package.json ./packages/database/
 COPY packages/eslint-config/package.json ./packages/eslint-config/
 COPY packages/tsconfig/package.json ./packages/tsconfig/
 
-# Install all deps (including dev) for build step
+# Install all deps (incl. dev). --ignore-scripts skips:
+#  - root `prepare` (lefthook install) — needs git which alpine lacks;
+#  - Prisma's postinstall — we run `prisma generate` explicitly below.
 RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
-    pnpm install --frozen-lockfile
+    pnpm install --frozen-lockfile --ignore-scripts
 
 # Copy sources
 COPY . .
 
-# Build everything
+# Build chain: generate Prisma client -> build packages -> build bot
 RUN pnpm --filter @discord-bot/database run db:generate && \
     pnpm --filter @discord-bot/shared run build && \
     pnpm --filter @discord-bot/database run build && \
     pnpm --filter @discord-bot/bot run build
 
-# Deploy bot with prod-only deps to /out
-RUN pnpm --filter @discord-bot/bot deploy --prod /out
+# Deploy bot with prod-only deps to /out. --legacy is required since
+# pnpm 10 made injected workspaces the default and our workspaces are
+# non-injected (the symlink-based default that the rest of the toolchain
+# assumes). --ignore-scripts again skips the root prepare hook.
+RUN pnpm --filter @discord-bot/bot deploy --prod --legacy --ignore-scripts /out
 
 # ──────────────────────────────────────────────────────────────────
 # Stage 2: runtime
@@ -43,21 +48,32 @@ RUN pnpm --filter @discord-bot/bot deploy --prod /out
 FROM node:${NODE_VERSION}-alpine AS runtime
 WORKDIR /app
 
-# OpenSSL 3 + tini for proper signal handling
+# tini for proper signal handling. wget is in busybox already (HEALTHCHECK uses it).
 RUN apk add --no-cache tini
 
-COPY --from=builder /out/dist ./dist
-COPY --from=builder /out/node_modules ./node_modules
-COPY --from=builder /out/package.json ./package.json
-# Prisma generated client + schema (for migrate deploy in entrypoint)
-COPY --from=builder /repo/packages/database/prisma ./prisma
+# pnpm is needed at runtime to invoke `prisma migrate deploy` from the
+# entrypoint. Installing via corepack keeps the version pinned to the
+# build-time toolchain.
+ARG PNPM_VERSION
+RUN corepack enable && corepack prepare pnpm@${PNPM_VERSION} --activate
+
+# --chown ensures the `node` user can write to the prisma engines cache
+# directory (the migrate CLI lazily downloads/extracts engine binaries
+# even on the no-Rust-engine v7 — it's the migration engine specifically).
+COPY --from=builder --chown=node:node /out/dist ./dist
+COPY --from=builder --chown=node:node /out/node_modules ./node_modules
+COPY --from=builder --chown=node:node /out/package.json ./package.json
+COPY --from=builder --chown=node:node /repo/packages/database ./packages/database
 
 ENV NODE_ENV=production
 USER node
 EXPOSE 3000
 
-ENTRYPOINT ["/sbin/tini", "--"]
-CMD ["node", "dist/index.js"]
+# Migrate the schema then start. If migrations fail we fail loudly via `set
+# -e` rather than silently boot against a stale DB. dumb-init/tini relays
+# SIGTERM to node which already handles graceful shutdown.
+ENTRYPOINT ["/sbin/tini", "--", "/bin/sh", "-c"]
+CMD ["set -e; pnpm --silent --prefix packages/database exec prisma migrate deploy; exec node dist/index.js"]
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
   CMD wget --quiet --spider http://localhost:3000/healthz || exit 1
