@@ -37,11 +37,17 @@ export type Env = z.infer<typeof EnvSchema>;
  * Parse and validate the entire process.env. Exits the process on failure
  * so the bot never runs with a broken config.
  *
+ * Empty-string values (`KEY=`) are treated as unset so that `.default()`
+ * and `.optional()` modifiers work as expected with .env files.
+ *
  * Critically: only key names are printed on failure — never values — to
  * avoid leaking partial secrets through CI/log forwarders.
  */
 export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
-  const parsed = EnvSchema.safeParse(source);
+  const cleaned: NodeJS.ProcessEnv = Object.fromEntries(
+    Object.entries(source).map(([k, v]) => [k, v === '' ? undefined : v]),
+  );
+  const parsed = EnvSchema.safeParse(cleaned);
 
   if (!parsed.success) {
     const issues = parsed.error.issues
