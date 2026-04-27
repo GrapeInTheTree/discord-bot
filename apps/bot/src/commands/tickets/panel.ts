@@ -3,7 +3,6 @@ import { Command } from '@sapphire/framework';
 import { ChannelType, MessageFlags } from 'discord.js';
 
 import { i18n } from '../../i18n/index.js';
-import { parseSnowflakeList } from '../../lib/snowflake.js';
 
 const BUTTON_STYLE_CHOICES = [
   { name: 'Primary (blue)', value: 'primary' },
@@ -91,11 +90,23 @@ export class PanelCommand extends Command {
                     .addChannelTypes(ChannelType.GuildCategory)
                     .setRequired(true),
                 )
-                .addStringOption((opt) =>
+                .addRoleOption((opt) =>
                   opt
-                    .setName('support-roles')
-                    .setDescription('Comma-separated role IDs allowed to claim/close/reopen.')
+                    .setName('support-role')
+                    .setDescription('Role allowed to claim/close/reopen.')
                     .setRequired(true),
+                )
+                .addRoleOption((opt) =>
+                  opt
+                    .setName('support-role-2')
+                    .setDescription('Additional support role.')
+                    .setRequired(false),
+                )
+                .addRoleOption((opt) =>
+                  opt
+                    .setName('support-role-3')
+                    .setDescription('Additional support role.')
+                    .setRequired(false),
                 )
                 .addStringOption((opt) =>
                   opt
@@ -113,10 +124,16 @@ export class PanelCommand extends Command {
                     .addChoices(...BUTTON_STYLE_CHOICES)
                     .setRequired(false),
                 )
-                .addStringOption((opt) =>
+                .addRoleOption((opt) =>
                   opt
-                    .setName('ping-roles')
-                    .setDescription('Comma-separated role IDs to mention on ticket creation.')
+                    .setName('ping-role')
+                    .setDescription('Role pinged when a ticket of this type is opened.')
+                    .setRequired(false),
+                )
+                .addRoleOption((opt) =>
+                  opt
+                    .setName('ping-role-2')
+                    .setDescription('Additional ping role.')
                     .setRequired(false),
                 )
                 .addIntegerOption((opt) =>
@@ -172,16 +189,34 @@ export class PanelCommand extends Command {
                     .addChannelTypes(ChannelType.GuildCategory)
                     .setRequired(false),
                 )
-                .addStringOption((opt) =>
+                .addRoleOption((opt) =>
                   opt
-                    .setName('support-roles')
-                    .setDescription('New comma-separated support role IDs.')
+                    .setName('support-role')
+                    .setDescription('New primary support role (overrides existing list).')
                     .setRequired(false),
                 )
-                .addStringOption((opt) =>
+                .addRoleOption((opt) =>
                   opt
-                    .setName('ping-roles')
-                    .setDescription('New comma-separated ping role IDs.')
+                    .setName('support-role-2')
+                    .setDescription('Additional support role.')
+                    .setRequired(false),
+                )
+                .addRoleOption((opt) =>
+                  opt
+                    .setName('support-role-3')
+                    .setDescription('Additional support role.')
+                    .setRequired(false),
+                )
+                .addRoleOption((opt) =>
+                  opt
+                    .setName('ping-role')
+                    .setDescription('New primary ping role (overrides existing list).')
+                    .setRequired(false),
+                )
+                .addRoleOption((opt) =>
+                  opt
+                    .setName('ping-role-2')
+                    .setDescription('Additional ping role.')
                     .setRequired(false),
                 )
                 .addIntegerOption((opt) =>
@@ -290,24 +325,18 @@ export class PanelCommand extends Command {
     const name = interaction.options.getString('name', true);
     const label = interaction.options.getString('label', true);
     const activeCategory = interaction.options.getChannel('active-category', true);
-    const supportRolesRaw = interaction.options.getString('support-roles', true);
     const emoji = interaction.options.getString('emoji', false) ?? '';
     const buttonStyle = (interaction.options.getString('button-style', false) ??
       'success') as ButtonStyleChoice;
-    const pingRolesRaw = interaction.options.getString('ping-roles', false) ?? '';
     const perUserLimit = interaction.options.getInteger('per-user-limit', false) ?? 1;
     const welcomeMessage = interaction.options.getString('welcome-message', false) ?? undefined;
 
-    let supportRoleIds: string[];
-    let pingRoleIds: string[];
-    try {
-      supportRoleIds = parseSnowflakeList(supportRolesRaw);
-      pingRoleIds = parseSnowflakeList(pingRolesRaw);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : i18n.common.errors.generic;
-      await interaction.editReply({ content: `Invalid role ID list: ${message}` });
-      return;
-    }
+    const supportRoleIds = collectRoleIds(interaction, [
+      'support-role',
+      'support-role-2',
+      'support-role-3',
+    ]);
+    const pingRoleIds = collectRoleIds(interaction, ['ping-role', 'ping-role-2']);
 
     const result = await this.container.services.panel.addTicketType({
       panelId,
@@ -343,21 +372,22 @@ export class PanelCommand extends Command {
       false,
     ) as ButtonStyleChoice | null;
     const activeCategory = interaction.options.getChannel('active-category', false);
-    const supportRolesRaw = interaction.options.getString('support-roles', false);
-    const pingRolesRaw = interaction.options.getString('ping-roles', false);
     const perUserLimit = interaction.options.getInteger('per-user-limit', false);
     const welcomeMessage = interaction.options.getString('welcome-message', false);
 
-    let supportRoleIds: string[] | undefined;
-    let pingRoleIds: string[] | undefined;
-    try {
-      if (supportRolesRaw !== null) supportRoleIds = parseSnowflakeList(supportRolesRaw);
-      if (pingRolesRaw !== null) pingRoleIds = parseSnowflakeList(pingRolesRaw);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : i18n.common.errors.generic;
-      await interaction.editReply({ content: `Invalid role ID list: ${message}` });
-      return;
-    }
+    // Each role-* slot is independently optional. The operator having picked
+    // at least one role for a slot family means "replace this family";
+    // omitting the family entirely means "leave the existing list as-is".
+    const supportRoleIds = hasAnyRolePicked(interaction, [
+      'support-role',
+      'support-role-2',
+      'support-role-3',
+    ])
+      ? collectRoleIds(interaction, ['support-role', 'support-role-2', 'support-role-3'])
+      : undefined;
+    const pingRoleIds = hasAnyRolePicked(interaction, ['ping-role', 'ping-role-2'])
+      ? collectRoleIds(interaction, ['ping-role', 'ping-role-2'])
+      : undefined;
 
     const result = await this.container.services.panel.editTicketType({
       panelId,
@@ -424,4 +454,32 @@ export class PanelCommand extends Command {
       flags: MessageFlags.Ephemeral,
     });
   }
+}
+
+/**
+ * Collect role IDs from N optional addRoleOption slots, preserving picker
+ * order and de-duplicating (operator might pick the same role twice across
+ * slots). Empty when the operator left every slot unset.
+ */
+function collectRoleIds(
+  interaction: Command.ChatInputCommandInteraction,
+  optionNames: readonly string[],
+): string[] {
+  const seen = new Set<string>();
+  const ordered: string[] = [];
+  for (const name of optionNames) {
+    const role = interaction.options.getRole(name, false);
+    if (role !== null && !seen.has(role.id)) {
+      seen.add(role.id);
+      ordered.push(role.id);
+    }
+  }
+  return ordered;
+}
+
+function hasAnyRolePicked(
+  interaction: Command.ChatInputCommandInteraction,
+  optionNames: readonly string[],
+): boolean {
+  return optionNames.some((name) => interaction.options.getRole(name, false) !== null);
 }
