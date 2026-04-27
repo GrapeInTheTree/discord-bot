@@ -3,7 +3,11 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { branding } from '../../src/config/branding.js';
 import { GuildConfigService } from '../../src/services/guildConfigService.js';
-import { PanelService, type UpsertPanelInput } from '../../src/services/panelService.js';
+import {
+  type AddTicketTypeInput,
+  PanelService,
+  type UpsertPanelInput,
+} from '../../src/services/panelService.js';
 import { TicketService } from '../../src/services/ticketService.js';
 import { FakeDiscordGateway } from '../helpers/fakeGateway.js';
 import { type IntegrationDb, startIntegrationDb } from '../helpers/testDb.js';
@@ -13,12 +17,20 @@ const SHOULD_RUN = process.env['RUN_INTEGRATION'] === '1';
 const baseUpsert: UpsertPanelInput = {
   guildId: 'g-int',
   channelId: 'c-int-support',
-  type: 'support',
+  embedTitle: 'Support',
+  embedDescription: 'Click below.',
+};
+
+const baseTypeInput = (panelId: string): AddTicketTypeInput => ({
+  panelId,
+  name: 'support',
+  label: 'Open ticket',
+  emoji: '📨',
   activeCategoryId: 'cat-int-active',
   supportRoleIds: ['r-int-staff'],
   pingRoleIds: [],
   perUserLimit: 1,
-};
+});
 
 const openInput = (panelId: string, typeId: string, openerId = 'u-int-1') => ({
   guildId: 'g-int',
@@ -47,7 +59,9 @@ describe.runIf(SHOULD_RUN)('integration: ticket lifecycle (real Postgres)', () =
     const upserted = await panel.upsertPanel(baseUpsert);
     if (!upserted.ok) throw upserted.error;
     panelId = upserted.value.panel.id;
-    typeId = upserted.value.ticketType.id;
+    const typeAdded = await panel.addTicketType(baseTypeInput(panelId));
+    if (!typeAdded.ok) throw typeAdded.error;
+    typeId = typeAdded.value.id;
 
     await guildConfig.setArchiveCategory('g-int', '900000000000000000');
     await guildConfig.setLogChannel('g-int', '910000000000000000');

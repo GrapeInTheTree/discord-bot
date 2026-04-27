@@ -4,16 +4,12 @@
 
 export const tickets = {
   panel: {
-    embedTitle: 'Support',
-    embedDescription: 'Click a button below to open a ticket.',
-    // Type-specific descriptions support a {offerChannel} cross-reference variable
-    // resolved at send time from the other panel's channelId. When the other panel
-    // is not yet configured the placeholder remains visible — the operator's signal
-    // to finish setup. Per-deployment overrides should live in PanelTicketType.welcomeMessage.
-    embedDescriptionSupport:
-      'Question Channel\n\nEvery community member matters and we pay attention to all your feedback or concerns.\n\nIf you have any questions, post them in this channel and a member of the team will usually get back to you within 24 hours.\n\nIf you have an offer or a proposal, use this link: {offerChannel}\n\nPlease keep in mind that anything that is not a question may get removed without a response — we do this to keep the channel organized so real questions are easy to find.',
-    embedDescriptionOffer:
-      'Offer Channel\n\nGot a partnership, collaboration, or proposal for the team? Open a ticket here.\n\nTo help us evaluate your offer:\n• Share the context — who you are, what you do, what you propose.\n• Be specific — vague pitches like "are you interested?" are hard to act on.\n• Include any links, decks, or supporting material up front.\n\nWe review every offer and will reply once we have enough context to give you a useful answer.',
+    // Defaults used when /panel create is invoked without title/description
+    // options. Operators are encouraged to provide their own copy via the
+    // slash command — these strings are intentionally generic so a fresh
+    // deployment is recognizable as "needs configuration" rather than "Fannie".
+    defaultEmbedTitle: 'Contact Team',
+    defaultEmbedDescription: 'Click a button below to open a ticket.',
   },
 
   channelHeader: {

@@ -33,12 +33,18 @@ export default defineConfig({
         'src/i18n/**',
         'src/commands/**',
         'src/listeners/**',
-        'src/interactions/**',
+        'src/interaction-handlers/**',
         'src/preconditions/**',
         'src/services/ports/**',
         'src/services/index.ts',
         'src/healthcheck/**',
         'src/lib/logger.ts',
+        // Helpers are tightly coupled to interaction/listener flows; they're
+        // exercised end-to-end by integration tests (PR-5) rather than unit-
+        // level. Inclusion would force us to mock discord.js Interaction
+        // shapes for marginal coverage gain.
+        'src/lib/interactionHelpers.ts',
+        'src/lib/replyEphemeral.ts',
       ],
       thresholds: {
         lines: 85,

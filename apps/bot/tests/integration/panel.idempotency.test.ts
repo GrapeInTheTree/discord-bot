@@ -10,11 +10,8 @@ const SHOULD_RUN = process.env['RUN_INTEGRATION'] === '1';
 const upsertInput: UpsertPanelInput = {
   guildId: 'g-idem',
   channelId: 'c-idem-support',
-  type: 'support',
-  activeCategoryId: 'cat-idem',
-  supportRoleIds: [],
-  pingRoleIds: [],
-  perUserLimit: 1,
+  embedTitle: 'Support',
+  embedDescription: 'Click below.',
 };
 
 describe.runIf(SHOULD_RUN)('integration: panel idempotency (real Postgres)', () => {
@@ -46,10 +43,12 @@ describe.runIf(SHOULD_RUN)('integration: panel idempotency (real Postgres)', () 
     });
     expect(rows).toHaveLength(1);
 
+    // First call sends a fresh message; second edits the live one.
     expect(gateway.callsOf('sendPanelMessage')).toHaveLength(1);
     expect(gateway.callsOf('editPanelMessage')).toHaveLength(1);
 
+    // Panel created with zero types — operator must add via /panel ticket-type add.
     const types = await env.db.panelTicketType.findMany({ where: { panelId: rows[0]?.id } });
-    expect(types).toHaveLength(1);
+    expect(types).toHaveLength(0);
   });
 });

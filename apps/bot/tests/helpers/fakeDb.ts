@@ -231,6 +231,12 @@ export function createFakeDb(initialOpts: FakeDbOptions = {}): FakeDb {
       ),
     findUnique: ({ where }: { where: { id: string } }) =>
       Promise.resolve(tables.panelTicketType.find((t) => t.id === where.id) ?? null),
+    findMany: ({ where }: { where: Partial<PanelTicketTypeRow> }) =>
+      Promise.resolve(
+        tables.panelTicketType.filter((t) =>
+          Object.entries(where).every(([k, v]) => t[k as keyof PanelTicketTypeRow] === v),
+        ),
+      ),
     create: ({ data }: { data: Omit<PanelTicketTypeRow, 'id'> }) => {
       const row: PanelTicketTypeRow = { id: nextId('type'), ...data };
       tables.panelTicketType.push(row);
@@ -240,6 +246,12 @@ export function createFakeDb(initialOpts: FakeDbOptions = {}): FakeDb {
       const row = tables.panelTicketType.find((t) => t.id === where.id);
       if (row === undefined) throw new Error(`panelTicketType ${where.id} not found`);
       Object.assign(row, data);
+      return Promise.resolve(row);
+    },
+    delete: ({ where }: { where: { id: string } }) => {
+      const idx = tables.panelTicketType.findIndex((t) => t.id === where.id);
+      if (idx < 0) throw new Error(`panelTicketType ${where.id} not found`);
+      const [row] = tables.panelTicketType.splice(idx, 1);
       return Promise.resolve(row);
     },
   };
@@ -347,6 +359,8 @@ export function createFakeDb(initialOpts: FakeDbOptions = {}): FakeDb {
       tables.ticketEvent = tables.ticketEvent.filter((e) => e.ticketId !== where.id);
       return Promise.resolve(row);
     },
+    count: ({ where }: { where: Record<string, unknown> }) =>
+      Promise.resolve(tables.ticket.filter((t) => matchesWhere(t, where)).length),
   };
 
   const ticketEvent = {

@@ -37,13 +37,21 @@ async function setup(options: { channelChildren?: number } = {}): Promise<Harnes
   const upserted = await panel.upsertPanel({
     guildId: 'g1',
     channelId: 'c-support',
-    type: 'support',
+    embedTitle: 'Support',
+    embedDescription: 'Click below.',
+  });
+  if (!upserted.ok) throw new Error('seed failed');
+  const typeAdded = await panel.addTicketType({
+    panelId: upserted.value.panel.id,
+    name: 'support',
+    label: 'Open ticket',
+    emoji: '📨',
     activeCategoryId: 'cat-active',
     supportRoleIds: ['r-staff'],
     pingRoleIds: [],
     perUserLimit: 1,
   });
-  if (!upserted.ok) throw new Error('seed failed');
+  if (!typeAdded.ok) throw new Error('seed type failed');
   // Reset gateway calls so tests assert only the action under test.
   gateway.reset();
 
@@ -54,7 +62,7 @@ async function setup(options: { channelChildren?: number } = {}): Promise<Harnes
     guildConfig,
     panel,
     panelId: upserted.value.panel.id,
-    typeId: upserted.value.ticketType.id,
+    typeId: typeAdded.value.id,
   };
 }
 
@@ -481,13 +489,21 @@ describe('TicketService — gateway error propagation', () => {
     const upserted = await panel.upsertPanel({
       guildId: 'g1',
       channelId: 'c-support',
-      type: 'support',
+      embedTitle: 'Support',
+      embedDescription: 'Click below.',
+    });
+    if (!upserted.ok) throw new Error('seed');
+    const typeAdded = await panel.addTicketType({
+      panelId: upserted.value.panel.id,
+      name: 'support',
+      label: 'Open ticket',
+      emoji: '📨',
       activeCategoryId: 'cat-active',
       supportRoleIds: ['r-staff'],
       pingRoleIds: [],
       perUserLimit: 1,
     });
-    if (!upserted.ok) throw new Error('seed');
+    if (!typeAdded.ok) throw new Error('seed type failed');
 
     // The gateway throws a plain Error; service is expected to surface it.
     // Service code is structured to wrap discord.js exceptions in DiscordApiError
@@ -500,7 +516,7 @@ describe('TicketService — gateway error propagation', () => {
         openerId: 'u',
         openerUsername: 'u',
         panelId: upserted.value.panel.id,
-        typeId: upserted.value.ticketType.id,
+        typeId: typeAdded.value.id,
       }),
     ).rejects.toThrow();
     // No row written when channel creation fails.

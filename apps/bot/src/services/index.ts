@@ -1,5 +1,10 @@
 export { GuildConfigService } from './guildConfigService.js';
-export { PanelService, type PanelType, type UpsertPanelInput } from './panelService.js';
+export {
+  PanelService,
+  type AddTicketTypeInput,
+  type EditTicketTypeInput,
+  type UpsertPanelInput,
+} from './panelService.js';
 export {
   TicketService,
   type ActorInput,
