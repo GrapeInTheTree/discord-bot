@@ -1,0 +1,19 @@
+# gitleaks config — extends defaults, adds allowlist for known placeholders.
+title = "discord-bot gitleaks config"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Test/CI placeholder values that look like Discord IDs/tokens"
+regexes = [
+  # Sequential digit placeholder used in tests + CI env
+  '''123456789012345678''',
+  # 60 x's used as placeholder Discord token in CI workflow
+  '''^x{60}$''',
+]
+paths = [
+  '''apps/bot/tests/.*''',
+  '''\.github/workflows/.*''',
+  '''apps/bot/\.env\.example''',
+]

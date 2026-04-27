@@ -1,0 +1,10 @@
+node_modules/
+dist/
+build/
+out/
+.turbo/
+coverage/
+pnpm-lock.yaml
+.changeset/*.md
+packages/database/prisma/migrations/
+*.tsbuildinfo

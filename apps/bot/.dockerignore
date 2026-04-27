@@ -1,0 +1,17 @@
+node_modules
+dist
+build
+out
+.turbo
+coverage
+.env
+.env.*
+!.env.example
+.git
+.github
+*.log
+.DS_Store
+.vscode
+.idea
+tests
+*.test.ts

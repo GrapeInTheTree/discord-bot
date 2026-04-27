@@ -1,0 +1,60 @@
+# Single compose file — handles both dev (postgres only) and prod (bot + postgres).
+#
+# Local dev:
+#   docker compose -f infra/docker-compose.yml up -d postgres
+#   pnpm dev   # bot runs locally via tsx, connects to postgres on localhost:5432
+#
+# Production (VM):
+#   cp apps/bot/.env.example apps/bot/.env && vi apps/bot/.env
+#   docker compose -f infra/docker-compose.yml up -d
+#
+# Required env in apps/bot/.env:
+#   POSTGRES_PASSWORD, DISCORD_TOKEN, DISCORD_APP_ID, BOT_NAME,
+#   DATABASE_URL=postgresql://bot:${POSTGRES_PASSWORD}@postgres:5432/discord_bot
+#   (For local dev override: DATABASE_URL=postgresql://bot:bot@localhost:5432/discord_bot)
+
+services:
+  bot:
+    image: ghcr.io/grapeinthetree/discord-bot:${IMAGE_TAG:-latest}
+    env_file: ../apps/bot/.env
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:3000:3000" # /healthz only on localhost
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-bot}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-bot}
+      POSTGRES_DB: ${POSTGRES_DB:-discord_bot}
+    ports:
+      - "127.0.0.1:5432:5432" # exposed on localhost only — for local dev (`pnpm dev`)
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-bot} -d ${POSTGRES_DB:-discord_bot}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # redis is added in Phase 4 (Reminders/Giveaways/multi-shard)
+  # redis:
+  #   image: redis:7-alpine
+  #   restart: unless-stopped
+  #   command: ["redis-server", "--appendonly", "yes"]
+  #   volumes:
+  #     - redisdata:/data
+
+volumes:
+  pgdata:
+  # redisdata:

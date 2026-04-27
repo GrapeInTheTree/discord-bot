@@ -1,0 +1,52 @@
+{
+  "name": "discord-bot",
+  "version": "0.0.0",
+  "private": true,
+  "description": "White-label Discord community bot — MEE6 / Ticket Tool class. One codebase, deploy per community via env.",
+  "license": "UNLICENSED",
+  "type": "module",
+  "engines": {
+    "node": "22.22.x",
+    "pnpm": ">=10.0.0"
+  },
+  "packageManager": "pnpm@10.14.0",
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev --no-cache --concurrency=20",
+    "test": "turbo run test",
+    "test:watch": "turbo run test:watch",
+    "test:coverage": "turbo run test -- --coverage",
+    "typecheck": "turbo run typecheck",
+    "lint": "turbo run lint",
+    "lint:fix": "turbo run lint:fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "changeset": "changeset",
+    "version-packages": "changeset version",
+    "release": "turbo run build && changeset publish",
+    "clean": "turbo run clean && rm -rf node_modules .turbo coverage",
+    "prepare": "lefthook install"
+  },
+  "devDependencies": {
+    "@changesets/cli": "2.27.10",
+    "@commitlint/cli": "19.6.0",
+    "@commitlint/config-conventional": "19.6.0",
+    "@commitlint/types": "19.5.0",
+    "@discord-bot/eslint-config": "workspace:*",
+    "@types/node": "22.10.2",
+    "eslint": "9.17.0",
+    "lefthook": "1.10.10",
+    "prettier": "3.4.2",
+    "turbo": "2.3.3",
+    "typescript": "5.8.3"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@prisma/client",
+      "@prisma/engines",
+      "esbuild",
+      "lefthook",
+      "prisma"
+    ]
+  }
+}

@@ -1,0 +1,54 @@
+# lefthook — git hook runner
+# https://lefthook.dev/
+#
+# Install: pnpm install (auto via "prepare" script)
+# Manual:  pnpm exec lefthook install
+
+pre-commit:
+  parallel: true
+  commands:
+    gitleaks:
+      tags: secret
+      run: |
+        if command -v gitleaks > /dev/null 2>&1; then
+          gitleaks protect --staged --no-banner --redact
+        else
+          echo "⚠️  gitleaks not installed (PUBLIC repo — install required)"
+          echo "    macOS:  brew install gitleaks"
+          echo "    Linux:  https://github.com/gitleaks/gitleaks#installing"
+          exit 1
+        fi
+
+    secret-scan:
+      tags: secret
+      glob: "*.{ts,tsx,js,mjs,cjs,json,yml,yaml,env,sh}"
+      run: |
+        FILES="{staged_files}"
+        if [ -z "$FILES" ]; then exit 0; fi
+        # Catch obvious patterns gitleaks may miss in custom files
+        if echo "$FILES" | xargs grep -lE '(DISCORD_TOKEN|API[_-]?KEY|SECRET|PASSWORD|BEARER)\s*[=:]\s*["\x27]?[A-Za-z0-9_./-]{20,}' 2>/dev/null; then
+          echo "❌ Potential secret pattern detected in staged files"
+          exit 1
+        fi
+
+    lint:
+      tags: style
+      glob: "*.{ts,tsx,js,mjs,cjs}"
+      run: pnpm exec eslint --max-warnings=0 {staged_files}
+
+    format:
+      tags: style
+      glob: "*.{ts,tsx,js,mjs,cjs,json,md,yml,yaml}"
+      run: pnpm exec prettier --check {staged_files}
+
+commit-msg:
+  commands:
+    commitlint:
+      run: pnpm exec commitlint --edit {1}
+
+pre-push:
+  commands:
+    typecheck:
+      run: pnpm typecheck
+    test:
+      run: pnpm test

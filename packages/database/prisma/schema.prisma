@@ -1,0 +1,19 @@
+// Discord bot database schema.
+// Phase 0: placeholder model only — Phase 1 replaces with real schema
+// (GuildConfig, Panel, PanelTicketType, Ticket, TicketEvent).
+// See vault doc: 02_implementation/03-data-models.md
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// Placeholder so `prisma generate` succeeds in Phase 0.
+/// Removed by Phase 1's `0001_init_tickets` migration.
+model Bootstrap {
+  id String @id @default(cuid())
+}

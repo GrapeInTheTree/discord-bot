@@ -1,0 +1,40 @@
+name: Bug Report
+description: Report a defect in the bot
+labels: ["bug"]
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened
+      description: Clear, concise description of the bug.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. /panel send #channel
+        2. Click "Open ticket" button
+        3. Observe ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: input
+    id: bot_version
+    attributes:
+      label: Bot version (image tag or commit SHA)
+  - type: input
+    id: guild_id
+    attributes:
+      label: Guild ID (if relevant)
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      render: shell
