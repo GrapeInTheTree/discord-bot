@@ -28,6 +28,7 @@ export function startHealthcheck({ port, isReady }: HealthcheckOptions): Promise
 
     server.once('error', reject);
     server.listen(port, () => {
+      // Sapphire logger may not be wired through container yet during bootstrap.
       console.log(`[healthcheck] listening on :${port}/healthz`);
       resolve(server);
     });

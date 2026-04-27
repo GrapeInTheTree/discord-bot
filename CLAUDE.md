@@ -44,7 +44,7 @@
 | 패키지 매니저  | **pnpm 9+**                                                     | Bun 1.3은 봇 ecosystem 미검증                          |
 | Discord SDK    | **discord.js v14.26+**                                          | Necord (NestJS 강제), Sapphire (위에 얹음)             |
 | Bot 프레임워크 | **Sapphire Framework v5.5+**                                    | raw discord.js는 boilerplate 폭증                      |
-| ORM            | **Prisma 7** (Rust engine 제거, 순수 TS)                        | Drizzle은 SQL-native지만 다중 테이블 DX 손해           |
+| ORM            | **Prisma 7** (현재 7.8.0, Rust engine 제거 + driver adapter)    | Drizzle은 SQL-native지만 다중 테이블 DX 손해           |
 | DB             | **PostgreSQL 16+**                                              | per-guild config는 JSONB                               |
 | Cache/Queue    | **(옵셔널)** Redis 7 + BullMQ — Phase 4부터 도입                | v1~3까지는 Postgres + 인메모리로 충분 (아래 §6.1 참조) |
 | 빌드           | **tsup** (build) + **tsx** (dev watch)                          | esbuild 직접 호출은 너무 raw                           |
@@ -65,6 +65,7 @@
 - **AutoMod** — Discord 네이티브 `AutoModerationRule` API + 봇 자체 룰 **공존**. 네이티브는 `AUTO_MODERATION_ACTION_EXECUTION` 이벤트로 후킹.
 - **Permission model** — 2026-02-23 split 적용: `PIN_MESSAGES`, `BYPASS_SLOWMODE`, `CREATE_GUILD_EXPRESSIONS`가 별 권한. invite scope 계산 시 **반드시 신규 비트 포함**.
 - **Branding 주입 경로** — `apps/bot/src/config/branding.ts`가 env에서 읽어 typed `Branding` 객체 export. 이 객체만 봇 전체가 참조. env 키: `BOT_NAME`, `BOT_BRAND_COLOR` (hex), `BOT_ICON_URL`, `BOT_FOOTER_TEXT`, `BOT_SUPPORT_URL`, `BOT_LOCALE` (`en`/`ko` 등).
+- **Prisma 7 driver adapter 패턴** — Prisma 7부터 `datasource.url`이 `schema.prisma`에서 빠지고 `packages/database/prisma.config.ts`로 이동. runtime PrismaClient는 `@prisma/adapter-pg` (node-postgres 기반)를 통해 connection. `prisma generate`는 connect 안 하므로 dev 편의 placeholder URL을 npm script에 inline (`db:generate`, `build`). 진짜 migrate는 `DATABASE_URL` export 후 `db:migrate*` 실행.
 - **메시지 템플릿** — 모든 사용자-대면 카피는 `apps/bot/src/i18n/<locale>/<domain>.ts`에 키-값 형태. 변수 치환은 ICU MessageFormat 또는 단순 `{var}` 치환. 카피 변경 = 코드 수정 없이 i18n 파일만.
 
 ---
@@ -87,8 +88,10 @@ discord-bot/
 │   │   │   ├── services/          # 비즈니스 로직 (TicketService, XpService)
 │   │   │   ├── jobs/              # BullMQ workers (reminder, autoUnmute, autoClose)
 │   │   │   ├── preconditions/     # 권한 가드 (sapphire 패턴)
-│   │   │   ├── lib/               # 순수 유틸 (formatters, durationParser)
-│   │   │   ├── config/            # zod env 스키마, constants
+│   │   │   ├── lib/               # 순수 유틸 (formatters, durationParser, logger)
+│   │   │   ├── config/            # zod env 스키마, branding (frozen)
+│   │   │   ├── i18n/              # locale별 카피 템플릿 (en/, ko/, ...)
+│   │   │   ├── healthcheck/       # /healthz HTTP 서버 (Docker readiness)
 │   │   │   ├── container.ts       # Sapphire DI container
 │   │   │   └── index.ts           # bootstrap
 │   │   ├── tests/                 # 통합 테스트
@@ -344,7 +347,9 @@ infra/
 - Discord Platform Changelog — https://docs.discord.com/developers/change-log
 - Components V2 reference — https://docs.discord.com/developers/components/reference
 - Sharding guide — https://discordjs.guide/sharding/
-- Prisma 7 perf — https://www.prisma.io/blog/performance-benchmarks-comparing-query-latency-across-typescript-orms-and-databases
+- Prisma 7 GA — https://www.prisma.io/blog/announcing-prisma-orm-7-0-0
+- Prisma 7 upgrade guide — https://www.prisma.io/docs/orm/more/upgrade-guides/upgrading-versions/upgrading-to-prisma-7
+- Prisma perf 벤치 — https://www.prisma.io/blog/performance-benchmarks-comparing-query-latency-across-typescript-orms-and-databases
 - Sapphire examples (`with-typescript-complete`) — https://github.com/sapphiredev/examples
 - Uniswap interface (Nx + lefthook + oxlint) — https://github.com/Uniswap/interface
 - Uniswap sdks (Turborepo + Changesets) — https://github.com/Uniswap/sdks
