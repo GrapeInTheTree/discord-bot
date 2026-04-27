@@ -291,16 +291,18 @@ GCP Compute Engine VM (e2-small, ubuntu-22.04-lts)
 
 ```
 infra/
-├── docker-compose.yml         # 단일 — dev에선 `up -d postgres`, prod에선 `up -d`
-└── deploy.sh                  # VM에서 docker compose pull + up -d
+├── docker-compose.yml         # 단일 — dev: `up -d postgres`, prod: `up -d --build`
+└── deploy.sh                  # VM에서 git pull + docker compose build + up -d
 ```
 
-**배포 흐름:**
+**배포 흐름 (registry-less, VM이 직접 빌드):**
 
 1. PR merge → main
-2. GitHub Actions: GHCR(GitHub Container Registry)로 이미지 푸시 (`ghcr.io/grapeinthetree/discord-bot:sha-XXXX`)
-3. VM에서 `deploy.sh` 실행 (수동 SSH 또는 webhook) → `docker compose pull && up -d`
+2. CI 검증: typecheck/lint/test/build + Dockerfile 빌드 검증 (push X)
+3. VM에서 `deploy.sh` 실행 (수동 SSH 또는 webhook) → `git pull && docker compose build bot && up -d`
 4. 헬스체크 — `/healthz` HTTP 엔드포인트 + Discord ready 이벤트
+
+→ **GHCR / 외부 registry 미사용**. VM이 Dockerfile로 직접 빌드. 단순 + registry 자격증명 불필요.
 
 **비밀 관리:**
 
@@ -309,9 +311,10 @@ infra/
 
 ### 6.4 CI/CD
 
-- GitHub Actions: lint + typecheck + test on PR, build & GHCR push on main
+- GitHub Actions: lint + typecheck + test + Dockerfile 빌드 검증 on PR/push
 - Changesets PR으로 버전 자동 관리
 - 인프라팀 의존성 없음 — 개인 GCP 프로젝트로 단독 운영
+- Image registry 사용 안 함 (VM에서 직접 빌드)
 
 ### 6.5 비밀 관리 (PUBLIC repo 주의)
 

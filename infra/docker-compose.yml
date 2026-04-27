@@ -1,21 +1,29 @@
 # Single compose file — handles both dev (postgres only) and prod (bot + postgres).
+# The bot image is built locally from apps/bot/Dockerfile (no registry needed).
 #
-# Local dev:
+# Local dev (bot runs via `pnpm dev`, only postgres in docker):
 #   docker compose -f infra/docker-compose.yml up -d postgres
-#   pnpm dev   # bot runs locally via tsx, connects to postgres on localhost:5432
+#   pnpm dev
 #
 # Production (VM):
+#   git pull
 #   cp apps/bot/.env.example apps/bot/.env && vi apps/bot/.env
-#   docker compose -f infra/docker-compose.yml up -d
+#   docker compose -f infra/docker-compose.yml up -d --build
+#
+# Rebuild only:
+#   docker compose -f infra/docker-compose.yml build bot
 #
 # Required env in apps/bot/.env:
 #   POSTGRES_PASSWORD, DISCORD_TOKEN, DISCORD_APP_ID, BOT_NAME,
 #   DATABASE_URL=postgresql://bot:${POSTGRES_PASSWORD}@postgres:5432/discord_bot
-#   (For local dev override: DATABASE_URL=postgresql://bot:bot@localhost:5432/discord_bot)
+#   (Local dev DATABASE_URL: postgresql://bot:bot@localhost:5432/discord_bot)
 
 services:
   bot:
-    image: ghcr.io/grapeinthetree/discord-bot:${IMAGE_TAG:-latest}
+    image: discord-bot:local
+    build:
+      context: ..
+      dockerfile: apps/bot/Dockerfile
     env_file: ../apps/bot/.env
     restart: unless-stopped
     depends_on:

@@ -1,31 +1,31 @@
 #!/usr/bin/env bash
-# Pulls latest discord-bot image from GHCR and rolls the bot service.
+# Deploy discord-bot on a VM (or any host running Docker + docker compose).
+# Builds the image locally from the Dockerfile — no registry required.
 #
 # Usage on VM (from infra/ directory):
-#   IMAGE_TAG=latest ./deploy.sh
-#   IMAGE_TAG=sha-abc1234 ./deploy.sh
+#   ./deploy.sh
 #
 # Prerequisites on VM:
 #   - docker + docker compose v2
-#   - infra/ + apps/bot/.env present
-#   - logged in to ghcr.io (docker login ghcr.io)
+#   - this repo cloned, infra/ + apps/bot/.env filled in
 
 set -euo pipefail
 
 cd "$(dirname "$0")"
-
-: "${IMAGE_TAG:=latest}"
 
 if [ ! -f ../apps/bot/.env ]; then
   echo "❌ ../apps/bot/.env not found — copy apps/bot/.env.example and fill in"
   exit 1
 fi
 
-echo "🔄 Pulling ghcr.io/grapeinthetree/discord-bot:${IMAGE_TAG}..."
-IMAGE_TAG="$IMAGE_TAG" docker compose pull bot
+echo "🔄 Pulling latest source..."
+git pull --ff-only
 
-echo "🔁 Restarting bot service..."
-IMAGE_TAG="$IMAGE_TAG" docker compose up -d --no-deps bot
+echo "🐳 Building bot image locally..."
+docker compose build bot
+
+echo "🔁 Starting services (bot + postgres)..."
+docker compose up -d
 
 echo "⏳ Waiting 10s for startup..."
 sleep 10
@@ -34,5 +34,5 @@ echo "📋 Recent logs:"
 docker compose logs --tail=30 bot
 
 echo ""
-echo "✅ Deploy complete (${IMAGE_TAG})"
+echo "✅ Deploy complete"
 echo "   Healthcheck: curl http://localhost:3000/healthz"
