@@ -21,6 +21,11 @@ if (env.DISCORD_DEV_GUILD_ID !== undefined) {
   ApplicationCommandRegistries.setDefaultGuildIds([env.DISCORD_DEV_GUILD_ID]);
 }
 ApplicationCommandRegistries.setDefaultBehaviorWhenNotIdentical(RegisterBehavior.Overwrite);
+// TODO(phase-1.1): persist application command ids to .command-hints.json
+// and seed each command's `idHints` so re-registration is skipped when the
+// command shape hasn't changed. Today every boot does a full Discord API
+// upsert which costs ~1–3s and counts toward rate limits. Deferred because
+// it's pure perf — correctness is unaffected.
 
 const client = new SapphireClient({
   loadMessageCommandListeners: false,
