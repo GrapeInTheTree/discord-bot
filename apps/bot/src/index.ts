@@ -24,9 +24,10 @@ const client = new SapphireClient({
   loadMessageCommandListeners: false,
   intents: [
     GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildMembers,
-    GatewayIntentBits.GuildMessages,
-    // GuildMessageReactions, MessageContent — added per-phase as needed
+    // Phase 1+ adds (after enabling Privileged Intents in Developer Portal):
+    //   GatewayIntentBits.GuildMembers     ← privileged: needed for ticket member resolution
+    //   GatewayIntentBits.GuildMessages    ← needed when reading channel history for transcripts
+    //   GatewayIntentBits.MessageContent   ← privileged: needed only if reading message content
   ],
   partials: [Partials.GuildMember, Partials.Channel],
   logger: { level: sapphireLogLevel },
