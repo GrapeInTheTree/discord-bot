@@ -9,11 +9,12 @@ import {
 import { GatewayIntentBits, Partials } from 'discord.js';
 
 // Load env + container side effects FIRST so any subsequent import can use them.
-import './container.js';
 import { branding } from './config/branding.js';
 import { env } from './config/env.js';
+import { attachServices } from './container.js';
 import { startHealthcheck } from './healthcheck/server.js';
 import { sapphireLogLevel } from './lib/logger.js';
+import { DjsDiscordGateway } from './services/ports/discordGateway.djs.js';
 
 // Register slash commands to dev guild for instant updates if configured.
 if (env.DISCORD_DEV_GUILD_ID !== undefined) {
@@ -25,14 +26,20 @@ const client = new SapphireClient({
   loadMessageCommandListeners: false,
   intents: [
     GatewayIntentBits.Guilds,
-    // Phase 1+ adds (after enabling Privileged Intents in Developer Portal):
-    //   GatewayIntentBits.GuildMembers     ← privileged: needed for ticket member resolution
-    //   GatewayIntentBits.GuildMessages    ← needed when reading channel history for transcripts
-    //   GatewayIntentBits.MessageContent   ← privileged: needed only if reading message content
+    // Privileged intent — enabled in Developer Portal for the FanX bot. Needed
+    // for resolving member display names when posting "{user} closed the
+    // ticket." style system messages and for permission overwrites tied to
+    // member role caches.
+    GatewayIntentBits.GuildMembers,
+    // GatewayIntentBits.MessageContent  ← Phase 1.1 transcript export only
   ],
   partials: [Partials.GuildMember, Partials.Channel],
   logger: { level: sapphireLogLevel },
 });
+
+// Wire services that need the live Client into the Sapphire DI container.
+// Pieces (commands/listeners/interactions) read services from `container.services`.
+attachServices(new DjsDiscordGateway(client));
 
 // Graceful shutdown on SIGTERM/SIGINT (Docker stop sends SIGTERM).
 // Order: stop accepting Discord events → flush DB connections → exit. We swallow
