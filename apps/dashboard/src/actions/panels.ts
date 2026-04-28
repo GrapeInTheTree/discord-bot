@@ -1,17 +1,7 @@
 'use server';
 
 import { db } from '@hearth/database';
-import {
-  type DiscordApiError,
-  type NotFoundError,
-  type PermissionError,
-  type Result,
-  type ValidationError,
-  ValidationError as ValidationErrorClass,
-  err,
-  isErr,
-  ok,
-} from '@hearth/shared';
+import { type ActionError, type Result, err, isErr, ok } from '@hearth/shared';
 import { type PanelInput, PanelInputSchema, PanelService } from '@hearth/tickets-core';
 import { revalidatePath } from 'next/cache';
 
@@ -39,7 +29,7 @@ import { authorizeGuild } from '@/lib/server-auth';
 
 export type PanelActionResult<T> = Result<
   { value: T; discordSyncFailed: boolean; discordSyncMessage?: string },
-  PermissionError | ValidationError | NotFoundError | DiscordApiError
+  ActionError
 >;
 
 interface CreatePanelArgs {
@@ -78,12 +68,12 @@ export async function createPanel(
 
   const parsed = PanelInputSchema.safeParse(args.input);
   if (!parsed.success) {
-    return err(new ValidationErrorClass(parsed.error.message));
+    return err({ code: 'VALIDATION_ERROR', message: parsed.error.message });
   }
 
   // Validate the channel/guild relationship matches what the form claimed.
   if (parsed.data.guildId !== args.guildId) {
-    return err(new ValidationErrorClass('guildId in form does not match URL'));
+    return err({ code: 'VALIDATION_ERROR', message: 'guildId in form does not match URL' });
   }
 
   // Insert the row first; the rerenderPanel inside upsertPanel will throw
@@ -191,7 +181,7 @@ export async function deletePanel(args: {
   revalidatePath(`/g/${args.guildId}/panels`);
 
   if (isErr(deleteResult)) {
-    return err(deleteResult.error);
+    return err({ code: deleteResult.error.code, message: deleteResult.error.message });
   }
   return ok({
     value: { panelId: deleteResult.value.panelId },

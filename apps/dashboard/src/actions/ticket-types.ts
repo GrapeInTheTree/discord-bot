@@ -1,18 +1,7 @@
 'use server';
 
 import { db } from '@hearth/database';
-import {
-  ConflictError,
-  type DiscordApiError,
-  NotFoundError,
-  type PermissionError,
-  type Result,
-  type ValidationError,
-  ValidationError as ValidationErrorClass,
-  err,
-  isErr,
-  ok,
-} from '@hearth/shared';
+import { type ActionError, type Result, err, isErr, ok } from '@hearth/shared';
 import { type TicketTypeInput, TicketTypeInputSchema } from '@hearth/tickets-core';
 import { revalidatePath } from 'next/cache';
 
@@ -28,15 +17,14 @@ import { authorizeGuild } from '@/lib/server-auth';
 //  4) call /internal/panels/:panelId/render to push to Discord
 //  5) revalidate Next.js paths so RSC pages refresh
 //
-// Constraint checks duplicated with tickets-core.PanelService:
-//  - panel must exist (otherwise NotFoundError)
-//  - type name must be unique within panel (ConflictError)
-//  - removal blocked when any tickets reference the type (ConflictError)
-// PR-5.4 tests cover these to keep the duplication honest.
+// All `err(...)` returns ship a plain `ActionError` ({ code, message })
+// rather than an AppError class instance — Next.js 15's flight serializer
+// otherwise replaces the Error with a `$Z` placeholder + redacted message
+// in production builds, hiding our user-facing copy from the toast.
 
 export type TypeActionResult<T> = Result<
   { value: T; discordSyncFailed: boolean; discordSyncMessage?: string },
-  PermissionError | ValidationError | NotFoundError | ConflictError | DiscordApiError
+  ActionError
 >;
 
 interface AddTypeArgs {
@@ -52,7 +40,7 @@ export async function addTicketType(
 
   const parsed = TicketTypeInputSchema.safeParse(args.input);
   if (!parsed.success) {
-    return err(new ValidationErrorClass(parsed.error.message));
+    return err({ code: 'VALIDATION_ERROR', message: parsed.error.message });
   }
 
   const panel = await db.panel.findUnique({
@@ -60,10 +48,16 @@ export async function addTicketType(
     include: { ticketTypes: { select: { name: true } } },
   });
   if (panel === null || panel.guildId !== args.guildId) {
-    return err(new NotFoundError(`Panel ${parsed.data.panelId} not found in this guild`));
+    return err({
+      code: 'NOT_FOUND',
+      message: `Panel ${parsed.data.panelId} not found in this guild`,
+    });
   }
   if (panel.ticketTypes.some((t) => t.name === parsed.data.name)) {
-    return err(new ConflictError(`Ticket type '${parsed.data.name}' already exists on this panel`));
+    return err({
+      code: 'CONFLICT',
+      message: `Ticket type '${parsed.data.name}' already exists on this panel`,
+    });
   }
 
   const created = await db.panelTicketType.create({
@@ -131,7 +125,10 @@ export async function editTicketType(
     include: { panel: { select: { guildId: true, id: true } } },
   });
   if (existing === null || existing.panel.guildId !== args.guildId) {
-    return err(new NotFoundError(`Ticket type ${args.typeId} not found in this guild`));
+    return err({
+      code: 'NOT_FOUND',
+      message: `Ticket type ${args.typeId} not found in this guild`,
+    });
   }
 
   await db.panelTicketType.update({
@@ -194,18 +191,20 @@ export async function removeTicketType(
     include: { panel: { select: { guildId: true, id: true } } },
   });
   if (existing === null || existing.panel.guildId !== args.guildId) {
-    return err(new NotFoundError(`Ticket type ${args.typeId} not found in this guild`));
+    return err({
+      code: 'NOT_FOUND',
+      message: `Ticket type ${args.typeId} not found in this guild`,
+    });
   }
 
   // FK is RESTRICT — block removal while any Ticket points at this type.
   // Same copy as the slash command for consistency with bot behavior.
   const ticketCount = await db.ticket.count({ where: { panelTypeId: args.typeId } });
   if (ticketCount > 0) {
-    return err(
-      new ConflictError(
-        `Cannot remove ticket type '${existing.name}': ${String(ticketCount)} ticket(s) reference it. Delete those tickets first.`,
-      ),
-    );
+    return err({
+      code: 'CONFLICT',
+      message: `Cannot remove ticket type '${existing.name}': ${String(ticketCount)} ticket(s) reference it. Delete those tickets first.`,
+    });
   }
 
   await db.panelTicketType.delete({ where: { id: args.typeId } });

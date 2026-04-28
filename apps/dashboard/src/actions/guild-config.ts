@@ -1,15 +1,7 @@
 'use server';
 
 import { db } from '@hearth/database';
-import {
-  type PermissionError,
-  type Result,
-  type ValidationError,
-  ValidationError as ValidationErrorClass,
-  err,
-  isErr,
-  ok,
-} from '@hearth/shared';
+import { type ActionError, type Result, err, isErr, ok } from '@hearth/shared';
 import { SnowflakeSchema } from '@hearth/tickets-core';
 import { revalidatePath } from 'next/cache';
 
@@ -20,7 +12,7 @@ import { authorizeGuild } from '@/lib/server-auth';
 // modlog embeds. Mirrors apps/bot/src/services/.../guildConfigService —
 // dashboard writes the same DB row the bot reads.
 
-export type GuildConfigResult<T> = Result<T, PermissionError | ValidationError>;
+export type GuildConfigResult<T> = Result<T, ActionError>;
 
 interface SetArchiveCategoryArgs {
   readonly guildId: string;
@@ -37,7 +29,10 @@ export async function setArchiveCategory(
   if (archiveCategoryId !== null && archiveCategoryId !== '') {
     const parsed = SnowflakeSchema.safeParse(archiveCategoryId);
     if (!parsed.success) {
-      return err(new ValidationErrorClass('archive category must be a Discord snowflake'));
+      return err({
+        code: 'VALIDATION_ERROR',
+        message: 'archive category must be a Discord snowflake',
+      });
     }
     archiveCategoryId = parsed.data;
   } else {
@@ -69,7 +64,10 @@ export async function setLogChannel(
   if (alertChannelId !== null && alertChannelId !== '') {
     const parsed = SnowflakeSchema.safeParse(alertChannelId);
     if (!parsed.success) {
-      return err(new ValidationErrorClass('log channel must be a Discord snowflake'));
+      return err({
+        code: 'VALIDATION_ERROR',
+        message: 'log channel must be a Discord snowflake',
+      });
     }
     alertChannelId = parsed.data;
   } else {
