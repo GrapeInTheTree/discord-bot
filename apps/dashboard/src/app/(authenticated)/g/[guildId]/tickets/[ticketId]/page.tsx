@@ -4,7 +4,13 @@ import { notFound, redirect } from 'next/navigation';
 import { Topbar } from '@/components/layout/topbar';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { auth } from '@/lib/auth';
+import { callBot } from '@/lib/botClient';
 import { relativeTime } from '@/lib/format';
+
+interface ResolveResponse {
+  readonly users: Record<string, { username: string; avatarHash: string | null }>;
+  readonly channels: Record<string, { name: string }>;
+}
 
 interface TicketDetailPageProps {
   readonly params: Promise<{ readonly guildId: string; readonly ticketId: string }>;
@@ -32,6 +38,29 @@ export default async function TicketDetailPage({
   });
   if (ticket === null || ticket.guildId !== guildId) notFound();
 
+  // Resolve all snowflakes appearing on this page (opener, claimer,
+  // channel, every event actor) to display names in one batch call. Bot
+  // cache misses fall back to raw IDs.
+  const userIds = new Set<string>([ticket.openerId]);
+  if (ticket.claimedById !== null) userIds.add(ticket.claimedById);
+  for (const e of ticket.events) userIds.add(e.actorId);
+  const resolved = await callBot<ResolveResponse>({
+    path: '/internal/resolve',
+    method: 'POST',
+    body: { userIds: Array.from(userIds), channelIds: [ticket.channelId] },
+  });
+  const userMap = resolved.ok ? resolved.value.users : {};
+  const channelMap = resolved.ok ? resolved.value.channels : {};
+  const formatUser = (id: string): React.ReactNode => {
+    const u = userMap[id];
+    return u !== undefined ? (
+      <span>@{u.username}</span>
+    ) : (
+      <code className="font-mono text-xs">{id}</code>
+    );
+  };
+  const channelInfo = channelMap[ticket.channelId];
+
   const avatarUrl =
     session.user.avatarHash !== null
       ? `https://cdn.discordapp.com/avatars/${session.user.discordId}/${session.user.avatarHash}.webp?size=128`
@@ -51,19 +80,24 @@ export default async function TicketDetailPage({
       ),
     },
     { label: 'Status', value: <span className="font-mono text-xs">{ticket.status}</span> },
-    { label: 'Opener', value: <code className="font-mono text-xs">{ticket.openerId}</code> },
+    { label: 'Opener', value: formatUser(ticket.openerId) },
     {
       label: 'Claimed by',
       value:
         ticket.claimedById !== null ? (
-          <code className="font-mono text-xs">{ticket.claimedById}</code>
+          formatUser(ticket.claimedById)
         ) : (
           <span className="text-[color:var(--color-fg-muted)]">—</span>
         ),
     },
     {
       label: 'Channel',
-      value: <code className="font-mono text-xs">{ticket.channelId}</code>,
+      value:
+        channelInfo !== undefined ? (
+          <span className="font-mono text-xs">#{channelInfo.name}</span>
+        ) : (
+          <code className="font-mono text-xs">{ticket.channelId}</code>
+        ),
     },
     { label: 'Opened', value: relativeTime(ticket.openedAt) },
     {
@@ -122,7 +156,7 @@ export default async function TicketDetailPage({
                     <div className="flex flex-col gap-0.5">
                       <span className="text-sm font-medium">{e.type}</span>
                       <span className="text-xs text-[color:var(--color-fg-muted)]">
-                        <code className="font-mono">{e.actorId}</code> · {relativeTime(e.createdAt)}
+                        {formatUser(e.actorId)} · {relativeTime(e.createdAt)}
                       </span>
                     </div>
                   </li>

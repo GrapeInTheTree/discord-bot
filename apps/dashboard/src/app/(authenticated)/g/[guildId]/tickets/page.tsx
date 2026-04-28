@@ -5,8 +5,14 @@ import { redirect } from 'next/navigation';
 import { Topbar } from '@/components/layout/topbar';
 import { Card, CardContent } from '@/components/ui/card';
 import { auth } from '@/lib/auth';
+import { callBot } from '@/lib/botClient';
 import { cn } from '@/lib/cn';
 import { relativeTime } from '@/lib/format';
+
+interface ResolveResponse {
+  readonly users: Record<string, { username: string; avatarHash: string | null }>;
+  readonly channels: Record<string, { name: string }>;
+}
 
 interface TicketsListPageProps {
   readonly params: Promise<{ readonly guildId: string }>;
@@ -45,6 +51,17 @@ export default async function TicketsListPage({
     orderBy: { openedAt: 'desc' },
     take: 50,
   });
+
+  // Batch-resolve openerIds → usernames via the bot's discord.js cache.
+  // Cache misses are silently skipped; the row falls back to showing the
+  // raw ID. We only ask the bot for what's on this page (max 50 IDs).
+  const uniqueOpenerIds = Array.from(new Set(tickets.map((t) => t.openerId)));
+  const resolved = await callBot<ResolveResponse>({
+    path: '/internal/resolve',
+    method: 'POST',
+    body: { userIds: uniqueOpenerIds },
+  });
+  const userMap = resolved.ok ? resolved.value.users : {};
 
   const avatarUrl =
     session.user.avatarHash !== null
@@ -105,8 +122,7 @@ export default async function TicketsListPage({
                         </span>
                       </span>
                       <span className="text-xs text-[color:var(--color-fg-muted)]">
-                        Opened by <code className="font-mono">{t.openerId}</code> ·{' '}
-                        {relativeTime(t.openedAt)}
+                        Opened by {renderUser(userMap, t.openerId)} · {relativeTime(t.openedAt)}
                       </span>
                     </div>
                   </div>
@@ -119,6 +135,14 @@ export default async function TicketsListPage({
       </main>
     </>
   );
+}
+
+function renderUser(
+  userMap: Record<string, { username: string; avatarHash: string | null }>,
+  id: string,
+): React.ReactNode {
+  const u = userMap[id];
+  return u !== undefined ? <span>@{u.username}</span> : <code className="font-mono">{id}</code>;
 }
 
 function StatusBadge({ status }: { readonly status: TicketStatus }): React.JSX.Element {

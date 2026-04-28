@@ -5,6 +5,7 @@ import { sendError } from './json.js';
 import { handleGuildResources, handleGuildsList } from './routes/guilds.js';
 import { handleHealthz } from './routes/healthz.js';
 import { handlePanelDelete, handlePanelRender } from './routes/panels.js';
+import { handleResolve } from './routes/resolve.js';
 import type { InternalApiContext } from './types.js';
 
 export interface StartInternalApiOptions {
@@ -73,6 +74,9 @@ function matchRoute(
     const [, panelId] = deleteMatch;
     if (panelId === undefined) return null;
     return { requireAuth: true, handle: async () => handlePanelDelete(ctx, panelId, res) };
+  }
+  if (method === 'POST' && pathname === '/internal/resolve') {
+    return { requireAuth: true, handle: async () => handleResolve(ctx, req, res) };
   }
 
   return null;
