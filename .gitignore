@@ -58,3 +58,7 @@ packages/database/prisma/migrations/.lock
 
 # Local Claude Code
 .claude/settings.local.json
+
+# Next.js
+apps/dashboard/.next/
+apps/dashboard/next-env.d.ts
