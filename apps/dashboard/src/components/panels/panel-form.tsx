@@ -1,8 +1,12 @@
 'use client';
 
+import { PanelInputSchema } from '@hearth/tickets-core/schemas';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { useRouter } from 'next/navigation';
 import * as React from 'react';
+import { Controller, useForm } from 'react-hook-form';
 import { toast } from 'sonner';
+import { z } from 'zod';
 
 import { createPanel, updatePanel } from '@/actions/panels';
 import { PanelPreview } from '@/components/panels/panel-preview';
@@ -35,23 +39,45 @@ interface PanelFormProps {
 
 const SESSION_KEY_PREFIX = 'panel-form:';
 
-/**
- * Panel create/edit form. State lives in React (uncontrolled inputs would
- * complicate the live preview), and is also persisted to sessionStorage
- * keyed by panelId or 'new' so accidental navigation away doesn't lose
- * the operator's work.
- */
+// Form values mirror PanelInputSchema, but the form treats title/description
+// as required strings (defaulted to non-empty starter copy) so the live
+// preview never has to handle `undefined`. We strip empties at submit time
+// to satisfy the optional-typed action signature.
+const FormSchema = PanelInputSchema.extend({
+  embedTitle: z.string().min(1, 'Title is required').max(256),
+  embedDescription: z.string().min(1, 'Description is required').max(4000),
+});
+type FormValues = z.infer<typeof FormSchema>;
+
 export function PanelForm({ guildId, channels, initial }: PanelFormProps): React.JSX.Element {
   const router = useRouter();
   const sessionKey = `${SESSION_KEY_PREFIX}${initial?.panelId ?? 'new'}`;
-  const [channelId, setChannelId] = React.useState(initial?.channelId ?? '');
-  const [title, setTitle] = React.useState(initial?.embedTitle ?? 'Contact Team');
-  const [description, setDescription] = React.useState(
-    initial?.embedDescription ?? 'Click a button below to open a ticket.',
-  );
-  const [submitting, setSubmitting] = React.useState(false);
 
-  // Hydrate from sessionStorage on first mount (client only).
+  const {
+    register,
+    control,
+    handleSubmit,
+    watch,
+    setValue,
+    formState: { errors, isSubmitting },
+  } = useForm<FormValues>({
+    resolver: zodResolver(FormSchema),
+    mode: 'onChange',
+    defaultValues: {
+      guildId,
+      channelId: initial?.channelId ?? '',
+      embedTitle: initial?.embedTitle ?? 'Contact Team',
+      embedDescription: initial?.embedDescription ?? 'Click a button below to open a ticket.',
+    },
+  });
+
+  // Live preview values — useWatch with watch() keeps the right column
+  // in sync per keystroke without re-rendering the entire form tree.
+  const title = watch('embedTitle');
+  const description = watch('embedDescription');
+  const channelId = watch('channelId');
+
+  // Hydrate from sessionStorage once on mount.
   React.useEffect(() => {
     if (typeof window === 'undefined') return;
     const stored = window.sessionStorage.getItem(sessionKey);
@@ -62,14 +88,19 @@ export function PanelForm({ guildId, channels, initial }: PanelFormProps): React
         title?: string;
         description?: string;
       };
-      if (typeof parsed.channelId === 'string') setChannelId(parsed.channelId);
-      if (typeof parsed.title === 'string') setTitle(parsed.title);
-      if (typeof parsed.description === 'string') setDescription(parsed.description);
+      if (typeof parsed.channelId === 'string') {
+        setValue('channelId', parsed.channelId, { shouldValidate: false });
+      }
+      if (typeof parsed.title === 'string') {
+        setValue('embedTitle', parsed.title, { shouldValidate: false });
+      }
+      if (typeof parsed.description === 'string') {
+        setValue('embedDescription', parsed.description, { shouldValidate: false });
+      }
     } catch {
       // Ignore — persisted state corrupted; start clean.
     }
-    // sessionKey is stable per form instance — only run on mount.
-  }, [sessionKey]);
+  }, [sessionKey, setValue]);
 
   // Persist on every change.
   React.useEffect(() => {
@@ -77,34 +108,29 @@ export function PanelForm({ guildId, channels, initial }: PanelFormProps): React
     window.sessionStorage.setItem(sessionKey, JSON.stringify({ channelId, title, description }));
   }, [sessionKey, channelId, title, description]);
 
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>): Promise<void> {
-    e.preventDefault();
-    if (submitting) return;
-    setSubmitting(true);
+  async function onSubmit(values: FormValues): Promise<void> {
     try {
       const result =
         initial !== undefined
           ? await updatePanel({
               guildId,
               panelId: initial.panelId,
-              embedTitle: title,
-              embedDescription: description,
+              embedTitle: values.embedTitle,
+              embedDescription: values.embedDescription,
             })
           : await createPanel({
               guildId,
               input: {
                 guildId,
-                channelId,
-                embedTitle: title,
-                embedDescription: description,
+                channelId: values.channelId,
+                embedTitle: values.embedTitle,
+                embedDescription: values.embedDescription,
               },
             });
       if (!result.ok) {
         toast.error(result.error.message);
-        setSubmitting(false);
         return;
       }
-      // Clear persisted state on successful submit.
       if (typeof window !== 'undefined') {
         window.sessionStorage.removeItem(sessionKey);
       }
@@ -117,14 +143,13 @@ export function PanelForm({ guildId, channels, initial }: PanelFormProps): React
       router.refresh();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Unexpected error');
-      setSubmitting(false);
     }
   }
 
   return (
     <form
       onSubmit={(e) => {
-        void handleSubmit(e);
+        void handleSubmit(onSubmit)(e);
       }}
       className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,360px)]"
     >
@@ -132,17 +157,27 @@ export function PanelForm({ guildId, channels, initial }: PanelFormProps): React
         {initial === undefined ? (
           <div className="grid gap-2">
             <Label htmlFor="panel-channel">Channel</Label>
-            <ChannelPicker
-              id="panel-channel"
-              channels={channels}
-              value={channelId}
-              onChange={setChannelId}
-              placeholder="Pick a channel"
+            <Controller
+              name="channelId"
+              control={control}
+              render={({ field }) => (
+                <ChannelPicker
+                  id="panel-channel"
+                  channels={channels}
+                  value={field.value}
+                  onChange={field.onChange}
+                  placeholder="Pick a channel"
+                />
+              )}
             />
-            <p className="text-xs text-[color:var(--color-fg-muted)]">
-              Where the panel message will be posted. Operators usually pick a public-facing channel
-              like <span className="font-mono">#contact-team</span>.
-            </p>
+            {errors.channelId !== undefined ? (
+              <p className="text-xs text-[color:var(--color-danger)]">{errors.channelId.message}</p>
+            ) : (
+              <p className="text-xs text-[color:var(--color-fg-muted)]">
+                Where the panel message will be posted. Operators usually pick a public-facing
+                channel like <span className="font-mono">#contact-team</span>.
+              </p>
+            )}
           </div>
         ) : null}
 
@@ -150,36 +185,38 @@ export function PanelForm({ guildId, channels, initial }: PanelFormProps): React
           <Label htmlFor="panel-title">Embed title</Label>
           <Input
             id="panel-title"
-            value={title}
-            onChange={(e) => {
-              setTitle(e.target.value);
-            }}
             maxLength={256}
+            aria-invalid={errors.embedTitle !== undefined}
+            {...register('embedTitle')}
           />
+          {errors.embedTitle !== undefined ? (
+            <p className="text-xs text-[color:var(--color-danger)]">{errors.embedTitle.message}</p>
+          ) : null}
         </div>
 
         <div className="grid gap-2">
           <Label htmlFor="panel-description">Embed description</Label>
           <Textarea
             id="panel-description"
-            value={description}
-            onChange={(e) => {
-              setDescription(e.target.value);
-            }}
             maxLength={4000}
+            aria-invalid={errors.embedDescription !== undefined}
+            {...register('embedDescription')}
           />
-          <p className="text-xs text-[color:var(--color-fg-muted)]">
-            Discord markdown supported (bold, italics, lists). Use real line breaks for paragraph
-            spacing.
-          </p>
+          {errors.embedDescription !== undefined ? (
+            <p className="text-xs text-[color:var(--color-danger)]">
+              {errors.embedDescription.message}
+            </p>
+          ) : (
+            <p className="text-xs text-[color:var(--color-fg-muted)]">
+              Discord markdown supported (bold, italics, lists). Use real line breaks for paragraph
+              spacing.
+            </p>
+          )}
         </div>
 
         <div className="flex justify-end gap-2 pt-2">
-          <Button
-            type="submit"
-            disabled={submitting || (initial === undefined && channelId === '')}
-          >
-            {submitting ? 'Saving…' : initial !== undefined ? 'Save changes' : 'Create panel'}
+          <Button type="submit" disabled={isSubmitting}>
+            {isSubmitting ? 'Saving…' : initial !== undefined ? 'Save changes' : 'Create panel'}
           </Button>
         </div>
       </div>

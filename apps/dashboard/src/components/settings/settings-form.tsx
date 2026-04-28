@@ -1,8 +1,11 @@
 'use client';
 
+import { zodResolver } from '@hookform/resolvers/zod';
 import { useRouter } from 'next/navigation';
 import * as React from 'react';
+import { Controller, useForm } from 'react-hook-form';
 import { toast } from 'sonner';
+import { z } from 'zod';
 
 import { setArchiveCategory, setLogChannel } from '@/actions/guild-config';
 import { CategoryPicker } from '@/components/pickers/category-picker';
@@ -31,28 +34,70 @@ interface SettingsFormProps {
   };
 }
 
+// Each sub-form holds a single snowflake-or-blank value. Empty string means
+// "unset" — converted to null at submit time. This keeps the field
+// controllable with a string default while still letting zod reject malformed
+// snowflakes that aren't blank.
+const SnowflakeOrEmpty = z
+  .string()
+  .refine(
+    (v) => v === '' || /^\d{17,20}$/.test(v),
+    'Discord snowflake must be 17–20 digits (or empty to unset)',
+  );
+
+const ArchiveCategorySchema = z.object({ archiveCategoryId: SnowflakeOrEmpty });
+const LogChannelSchema = z.object({ alertChannelId: SnowflakeOrEmpty });
+
+type ArchiveValues = z.infer<typeof ArchiveCategorySchema>;
+type LogValues = z.infer<typeof LogChannelSchema>;
+
 export function SettingsForm({
   guildId,
   channels,
   categories,
   initial,
 }: SettingsFormProps): React.JSX.Element {
-  const router = useRouter();
-  const [archiveCategoryId, setArchiveCategoryIdState] = React.useState(
-    initial.archiveCategoryId ?? '',
+  return (
+    <div className="flex flex-col gap-6">
+      <ArchiveCategoryCard
+        guildId={guildId}
+        categories={categories}
+        defaultValue={initial.archiveCategoryId ?? ''}
+      />
+      <LogChannelCard
+        guildId={guildId}
+        channels={channels}
+        defaultValue={initial.alertChannelId ?? ''}
+      />
+    </div>
   );
-  const [alertChannelId, setAlertChannelIdState] = React.useState(initial.alertChannelId ?? '');
-  const [savingArchive, setSavingArchive] = React.useState(false);
-  const [savingLog, setSavingLog] = React.useState(false);
+}
 
-  async function saveArchive(): Promise<void> {
-    if (savingArchive) return;
-    setSavingArchive(true);
+function ArchiveCategoryCard({
+  guildId,
+  categories,
+  defaultValue,
+}: {
+  readonly guildId: string;
+  readonly categories: readonly Category[];
+  readonly defaultValue: string;
+}): React.JSX.Element {
+  const router = useRouter();
+  const {
+    control,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+  } = useForm<ArchiveValues>({
+    resolver: zodResolver(ArchiveCategorySchema),
+    mode: 'onChange',
+    defaultValues: { archiveCategoryId: defaultValue },
+  });
+
+  async function onSubmit(values: ArchiveValues): Promise<void> {
     const result = await setArchiveCategory({
       guildId,
-      categoryId: archiveCategoryId === '' ? null : archiveCategoryId,
+      categoryId: values.archiveCategoryId === '' ? null : values.archiveCategoryId,
     });
-    setSavingArchive(false);
     if (!result.ok) {
       toast.error(result.error.message);
       return;
@@ -61,24 +106,12 @@ export function SettingsForm({
     router.refresh();
   }
 
-  async function saveLog(): Promise<void> {
-    if (savingLog) return;
-    setSavingLog(true);
-    const result = await setLogChannel({
-      guildId,
-      channelId: alertChannelId === '' ? null : alertChannelId,
-    });
-    setSavingLog(false);
-    if (!result.ok) {
-      toast.error(result.error.message);
-      return;
-    }
-    toast.success('Log channel saved');
-    router.refresh();
-  }
-
   return (
-    <div className="flex flex-col gap-6">
+    <form
+      onSubmit={(e) => {
+        void handleSubmit(onSubmit)(e);
+      }}
+    >
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Archive category</CardTitle>
@@ -90,28 +123,75 @@ export function SettingsForm({
         <CardContent className="flex flex-col gap-3">
           <div className="grid gap-2">
             <Label htmlFor="archive-category">Category</Label>
-            <CategoryPicker
-              id="archive-category"
-              categories={categories}
-              value={archiveCategoryId}
-              onChange={setArchiveCategoryIdState}
-              placeholder="No archive category"
+            <Controller
+              name="archiveCategoryId"
+              control={control}
+              render={({ field }) => (
+                <CategoryPicker
+                  id="archive-category"
+                  categories={categories}
+                  value={field.value}
+                  onChange={field.onChange}
+                  placeholder="No archive category"
+                />
+              )}
             />
+            {errors.archiveCategoryId !== undefined ? (
+              <p className="text-xs text-[color:var(--color-danger)]">
+                {errors.archiveCategoryId.message}
+              </p>
+            ) : null}
           </div>
           <div className="flex justify-end">
-            <Button
-              onClick={() => {
-                void saveArchive();
-              }}
-              disabled={savingArchive}
-              size="sm"
-            >
-              {savingArchive ? 'Saving…' : 'Save'}
+            <Button type="submit" disabled={isSubmitting} size="sm">
+              {isSubmitting ? 'Saving…' : 'Save'}
             </Button>
           </div>
         </CardContent>
       </Card>
+    </form>
+  );
+}
 
+function LogChannelCard({
+  guildId,
+  channels,
+  defaultValue,
+}: {
+  readonly guildId: string;
+  readonly channels: readonly Channel[];
+  readonly defaultValue: string;
+}): React.JSX.Element {
+  const router = useRouter();
+  const {
+    control,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+  } = useForm<LogValues>({
+    resolver: zodResolver(LogChannelSchema),
+    mode: 'onChange',
+    defaultValues: { alertChannelId: defaultValue },
+  });
+
+  async function onSubmit(values: LogValues): Promise<void> {
+    const result = await setLogChannel({
+      guildId,
+      channelId: values.alertChannelId === '' ? null : values.alertChannelId,
+    });
+    if (!result.ok) {
+      toast.error(result.error.message);
+      return;
+    }
+    toast.success('Log channel saved');
+    router.refresh();
+  }
+
+  return (
+    <form
+      onSubmit={(e) => {
+        void handleSubmit(onSubmit)(e);
+      }}
+    >
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Log channel</CardTitle>
@@ -123,27 +203,32 @@ export function SettingsForm({
         <CardContent className="flex flex-col gap-3">
           <div className="grid gap-2">
             <Label htmlFor="log-channel">Channel</Label>
-            <ChannelPicker
-              id="log-channel"
-              channels={channels}
-              value={alertChannelId}
-              onChange={setAlertChannelIdState}
-              placeholder="No log channel"
+            <Controller
+              name="alertChannelId"
+              control={control}
+              render={({ field }) => (
+                <ChannelPicker
+                  id="log-channel"
+                  channels={channels}
+                  value={field.value}
+                  onChange={field.onChange}
+                  placeholder="No log channel"
+                />
+              )}
             />
+            {errors.alertChannelId !== undefined ? (
+              <p className="text-xs text-[color:var(--color-danger)]">
+                {errors.alertChannelId.message}
+              </p>
+            ) : null}
           </div>
           <div className="flex justify-end">
-            <Button
-              onClick={() => {
-                void saveLog();
-              }}
-              disabled={savingLog}
-              size="sm"
-            >
-              {savingLog ? 'Saving…' : 'Save'}
+            <Button type="submit" disabled={isSubmitting} size="sm">
+              {isSubmitting ? 'Saving…' : 'Save'}
             </Button>
           </div>
         </CardContent>
       </Card>
-    </div>
+    </form>
   );
 }
