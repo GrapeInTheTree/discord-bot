@@ -156,8 +156,19 @@ export default tseslint.config(
 
   // Allow console in scripts, healthcheck, and the env-loader (which runs before logger is ready)
   {
-    files: ['**/scripts/**', '**/healthcheck/**', '**/config/env.ts'],
+    files: ['**/scripts/**', '**/healthcheck/**', '**/internal-api/**', '**/config/env.ts'],
     rules: { 'no-console': 'off' },
+  },
+
+  // Dashboard (Next.js): RSC + Server Actions render in mixed contexts.
+  // shadcn primitives use React.ElementRef ahead of the migration to
+  // ComponentRef; the env loader emits structured errors via console.
+  {
+    files: ['**/apps/dashboard/**/*.ts', '**/apps/dashboard/**/*.tsx'],
+    rules: {
+      'no-console': 'off',
+      '@typescript-eslint/no-deprecated': 'off',
+    },
   },
 
   // Database bootstrap legitimately reads NODE_ENV for Prisma log mode

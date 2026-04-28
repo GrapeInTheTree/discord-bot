@@ -111,7 +111,7 @@ export function startInternalApi({
         } catch (err) {
           // Log the underlying error via stderr so ops can correlate. Don't
           // leak details to the client (return only a generic message).
-          // eslint-disable-next-line no-console
+
           console.error('[internal-api] handler error:', err);
           if (!res.headersSent) {
             sendError(res, 'internal', 'internal server error');
@@ -124,7 +124,7 @@ export function startInternalApi({
     server.listen(port, () => {
       // Sapphire logger isn't wired through container yet at this point
       // in bootstrap; matches the existing healthcheck pattern.
-      // eslint-disable-next-line no-console
+
       console.log(`[internal-api] listening on :${port}`);
       resolve(server);
     });
