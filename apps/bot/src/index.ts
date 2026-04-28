@@ -31,10 +31,10 @@ const client = new SapphireClient({
   loadMessageCommandListeners: false,
   intents: [
     GatewayIntentBits.Guilds,
-    // Privileged intent — enabled in Developer Portal for the FanX bot. Needed
-    // for resolving member display names when posting "{user} closed the
-    // ticket." style system messages and for permission overwrites tied to
-    // member role caches.
+    // Privileged intent — must be enabled in the Developer Portal. Needed for
+    // resolving member display names when posting "{user} closed the ticket."
+    // style system messages and for permission overwrites tied to member role
+    // caches.
     GatewayIntentBits.GuildMembers,
     // GatewayIntentBits.MessageContent  ← Phase 1.1 transcript export only
   ],

@@ -20,7 +20,7 @@
   "scripts": {
     "build": "DATABASE_URL=${DATABASE_URL:-postgresql://placeholder@localhost:5432/placeholder} prisma generate && tsup",
     "dev": "tsup --watch",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "DATABASE_URL=${DATABASE_URL:-postgresql://placeholder@localhost:5432/placeholder} prisma generate && tsc --noEmit",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "test": "vitest run --passWithNoTests",

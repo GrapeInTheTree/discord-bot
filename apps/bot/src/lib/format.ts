@@ -25,7 +25,7 @@ export function normalizeUsername(raw: string): string {
 }
 
 /**
- * Build a ticket channel name in Fannie's pattern: `{number}-{username}`.
+ * Build a ticket channel name as `{number}-{username}`.
  * Falls back to `{number}-user-{userId}` when normalization yields nothing,
  * which preserves uniqueness for non-Latin usernames.
  */
