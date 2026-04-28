@@ -370,35 +370,42 @@ infra/
 
 ## 8. 진행 상황
 
-**현재 상태 (2026-04-27 — Phase 0 ✅, Phase 1 ✅ 완료):**
+**현재 상태 (2026-04-28 — Phase 0 + 1 + PR-6 ✅, PM Support Test 검증 중):**
 
-- ✅ **Phase 0**: 모노레포 스캐폴딩 + Sapphire bootstrap + multi-entry tsup + 전 quality gate. `Kayen Test Sever`에서 **Fannie Test#2349**가 `/ping` 응답. 함정 16건은 vault `03_troubleshooting/01-phase-0-gotchas.md`
-- ✅ **Phase 1**: 5 PR (PR-1~5, ~3000 LOC) 머지 + post-Phase-1 fix 7 commits. 티켓 lifecycle (open/claim/close/reopen/delete) FanX 테스트 서버에서 E2E 검증 완료. unit 82/82 + integration 5/5 (testcontainers pg 16) green. Coverage 90/83/93/90 ≥ 임계치
-- ✅ **Docker production-ready**: `docker compose -f infra/docker-compose.yml up -d --build bot`로 prisma migrate deploy + 봇 부팅 + healthy. `--ignore-scripts` (lefthook prepare 우회) + `--legacy` (pnpm 10 deploy) + `--chown=node:node` (prisma engines 캐시 권한) 패턴 정립
+- ✅ **Phase 0**: 모노레포 스캐폴딩 + Sapphire bootstrap + multi-entry tsup + 전 quality gate. FanX `Kayen Test Sever`에서 `/ping` 응답. 함정 16건: vault `03_troubleshooting/01-phase-0-gotchas.md`
+- ✅ **Phase 1**: 5 PR (PR-1~5, ~3000 LOC) + post-Phase-1 fix 7 commits. 티켓 lifecycle (open/claim/close/reopen/delete) E2E 검증. unit 82/82 + integration 5/5 (testcontainers pg 16) green. Coverage 90+/83+/93+/90+ ≥ 임계치. 함정 9건: vault `03_troubleshooting/02-phase-1-gotchas.md`
+- ✅ **PR-6 (Multi-type panel)**: 1 panel = N 버튼. `/panel create` + `/panel ticket-type {add, edit, remove}` 슬래시. `PanelType` union 제거 (generic string). 운영자가 Discord 슬래시로 type 자유 추가/수정/삭제 (코드 0 변경). Discord 네이티브 role picker UX (CSV 텍스트 입력 X). unit 92/92 + integration 5/5 green. Coverage 91.7/81.7/94.1/91.7
+- ✅ **Docker production-ready**: `docker compose up bot` → migrate + 부팅 + healthy. `--ignore-scripts` + `--legacy` + `--chown=node:node` 패턴 정립
+- 🚧 **PM Support Test 서버 검증 진행 중 (2026-04-28~)**: 봇이 FanX Test + Support Test 두 guild 동시 active. `Contact Team` panel + `Support` / `Offer` 두 버튼 셋업. PM이 user / staff / admin 시점 각각 검증 중
 
-**Phase 1에서 가장 시간 들었던 함정 (vault `03_troubleshooting/02-phase-1-gotchas.md`):**
+**검증된 권한 모델 (PM 합의, 2026-04-28):**
 
-- `@prisma/client@7` default entry는 CJS — Node ESM의 cjs-module-lexer가 named export 정적 분석 못 함. **해법**: 새 `prisma-client` ESM generator로 전환 (CJS interop 우회 코드 0줄)
+| 액션        | 권한                                   |
+| ----------- | -------------------------------------- |
+| Open ticket | 모든 user (panel 채널 access만 있으면) |
+| Close       | opener OR support role                 |
+| Claim       | support role only                      |
+| Reopen      | support role only                      |
+| Delete      | admin (Manage Guild) only              |
+
+**Discord button visibility 한계 (PM 안내됨):** welcome 메시지의 4 버튼은 채널 view 권한 있는 모두에게 보임 (Discord platform 제약 — per-viewer 렌더 불가). 권한 차단은 service 레벨에서 ephemeral 에러로 처리. MEE6 / Tickety / Fannie 동일 패턴.
+
+**Phase 1 + PR-6 누적 함정 (vault `03_troubleshooting/02-phase-1-gotchas.md`):**
+
+- `@prisma/client@7` default entry는 CJS — Node ESM의 cjs-module-lexer가 named export 정적 분석 못 함. **해법**: 새 `prisma-client` ESM generator로 전환
 - Sapphire `InteractionHandlerStore`는 `interaction-handlers/` (하이픈)만 스캔. `interactions/`로 짜놨더니 모든 button/modal 무응답 → **해법**: 디렉토리 rename
-- Sapphire piece 1 file = 1 class. 한 파일에 listener 두 개 export하면 두 번째는 silent fail → **해법**: `listeners/{interactionHandlerError, chatInputCommandError, chatInputCommandDenied}.ts` 분할
-- `Precondition.name` 옵션 명시 안 하면 filename basename으로 fallback. `adminOnly.ts` → `'adminOnly'`로 등록되는데 commands는 `['AdminOnly']` 참조 → 미스매치 → **해법**: 생성자에서 `name: 'AdminOnly'` 명시
-- Sapphire는 `ChatInputCommandDenied` 이벤트에 자동 응답 안 함. listener 없으면 Discord "application did not respond" 3초 후 → **해법**: `chatInputCommandDenied.ts` listener 추가
+- Sapphire piece 1 file = 1 class. 한 파일에 listener 두 개 export하면 두 번째는 silent fail → **해법**: 파일 분할
+- `Precondition.name` 명시 필수 (filename fallback 위험)
+- `ChatInputCommandDenied` 이벤트 listener 필수 (Sapphire 자동 응답 X → "application did not respond")
+- DEV_GUILD_ID 변경 후 Sapphire가 in-memory 캐시 때문에 새 guild에 push skip → **해법**: `docker compose down bot` 후 `up -d` (full recreate)
 
-**다음 할 일 — PR-6 (Multi-type panel):**
+**다음 할 일:**
 
-PM 요구사항 (2026-04-27): 1 panel에 N type 버튼 지원. Contact Team 채널에 `Question (1:1 문의)` + `Business Offer (비즈니스)` 두 버튼, 각자 별도 active 카테고리(`community questions`, `business offers`)로 라우팅.
-
-Schema 차원에선 이미 1:N 지원 (`Panel` 1:N `PanelTicketType`). `/panel` 슬래시 일반화 필요:
-
-1. `/panel create channel:<#> title:<text> description:<text>` — panel + embed만 (버튼 0개)
-2. `/panel ticket-type add panel:<id> name:<str> label:<str> emoji:<str> active-category:<#> support-roles:<csv> ping-roles:<csv> per-user-limit:<int> welcome-message:<text?>` — type 추가 (버튼 추가됨)
-3. `/panel ticket-type edit ...` — 운영자가 Discord에서 직접 수정 가능 (코드 변경 0)
-4. `/panel ticket-type remove panel:<id> name:<str>`
-5. `PanelType` union 제거 → generic `string` (white-label)
-6. `i18n.tickets.panel.embedTitle/Description` hardcoded 제거 → 운영자 입력 또는 default fallback
-7. 추가 type별 카피 — `PanelTicketType.welcomeMessage` 컬럼 이미 존재, 슬래시 옵션으로 받음
-
-세부: vault `02_implementation/06-pr6-multi-type-panel.md`
+1. **PM Support Test E2E 마무리** — 모든 lifecycle scenarios + role picker UX 확인
+2. **Dashboard skeleton (Path B 채택)** — Next.js + Discord OAuth + Vercel deploy + Neon DB. ~3-5일. 참고: `02_implementation/06-pr6-multi-type-panel.md`의 Phase 5 dashboard 가이드라인. 결정 sprint:
+   - Vercel + Neon (free tier) — 추천
+   - 또는 VM-only (Caddy 자동 TLS)
+3. **그 후 Phase 2 (Moderation + AutoMod)**
 
 **막힌 것 / 대기 중:**
 
