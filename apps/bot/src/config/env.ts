@@ -37,6 +37,16 @@ const EnvSchema = z.object({
   // Server
   PORT: z.coerce.number().int().positive().max(65535).default(3000),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('production'),
+
+  // Internal API — shared secret used by the dashboard to call the bot.
+  // Generate with `openssl rand -hex 32`. Optional in dev (so the bot can
+  // boot without a dashboard), required in production. The internal-api
+  // routes return 503 if missing rather than 401 to make the misconfig
+  // obvious during ops setup.
+  INTERNAL_API_TOKEN: z
+    .string()
+    .min(32, 'INTERNAL_API_TOKEN must be at least 32 characters')
+    .optional(),
 });
 
 export type Env = z.infer<typeof EnvSchema>;

@@ -37,12 +37,16 @@ export default defineConfig({
         'src/preconditions/**',
         'src/services/ports/**',
         'src/services/index.ts',
-        'src/healthcheck/**',
+        // server.ts is the http.createServer + dispatch glue. Its routing is
+        // exercised end-to-end by the dashboard integration tests (PR-3+);
+        // unit-testing it would require a TCP listen which slows the
+        // <1s-target unit suite.
+        'src/internal-api/server.ts',
+        'src/internal-api/json.ts',
+        'src/internal-api/types.ts',
         'src/lib/logger.ts',
         // Helpers are tightly coupled to interaction/listener flows; they're
-        // exercised end-to-end by integration tests (PR-5) rather than unit-
-        // level. Inclusion would force us to mock discord.js Interaction
-        // shapes for marginal coverage gain.
+        // exercised end-to-end by integration tests rather than unit-level.
         'src/lib/interactionHelpers.ts',
         'src/lib/replyEphemeral.ts',
       ],

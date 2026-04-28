@@ -138,6 +138,48 @@ export class PanelService {
     return await this.db.panel.findMany({ where: { guildId }, orderBy: { createdAt: 'asc' } });
   }
 
+  /**
+   * Re-render the panel's Discord message from the current DB state. Idempotent.
+   * Used by the dashboard's internal-API hook after CRUD-style mutations the
+   * dashboard performs directly against the DB. Returns the (possibly new)
+   * messageId and whether the message was recreated (true when the existing
+   * message id was stale or absent).
+   */
+  public async renderPanel(
+    panelId: string,
+  ): Promise<Result<{ messageId: string; recreated: boolean }, NotFoundError>> {
+    const panel = await this.db.panel.findUnique({
+      where: { id: panelId },
+      include: { ticketTypes: true },
+    });
+    if (panel === null) return err(new NotFoundError(`Panel ${panelId} not found`));
+    const result = await this.rerenderPanel(panel);
+    return ok(result);
+  }
+
+  /**
+   * Hard-delete a panel: remove the Discord message (best-effort) and the DB
+   * row. Cascades to PanelTicketType via the FK. Tickets reference the panel
+   * with FK RESTRICT — caller must delete tickets first or this returns the
+   * Prisma constraint error.
+   */
+  public async deletePanel(panelId: string): Promise<Result<{ panelId: string }, NotFoundError>> {
+    const panel = await this.db.panel.findUnique({ where: { id: panelId } });
+    if (panel === null) return err(new NotFoundError(`Panel ${panelId} not found`));
+    if (panel.messageId !== PLACEHOLDER_MESSAGE_ID) {
+      // Best-effort — message may already be gone, that's fine.
+      await this.gateway
+        .editPanelMessage(panel.channelId, panel.messageId, {
+          content: undefined,
+          embeds: [],
+          components: [],
+        })
+        .catch(() => undefined);
+    }
+    await this.db.panel.delete({ where: { id: panelId } });
+    return ok({ panelId });
+  }
+
   public async getPanelTypeForOpen(
     panelId: string,
     typeId: string,
@@ -254,7 +296,9 @@ export class PanelService {
 
   // ─────────────────────────── private ───────────────────────────
 
-  private async rerenderPanel(panel: Panel & { ticketTypes: PanelTicketType[] }): Promise<void> {
+  private async rerenderPanel(
+    panel: Panel & { ticketTypes: PanelTicketType[] },
+  ): Promise<{ messageId: string; recreated: boolean }> {
     // Re-fetch types so the rendered set reflects the just-applied mutation.
     const types = await this.db.panelTicketType.findMany({ where: { panelId: panel.id } });
     const payload = this.buildPanelPayload(panel.embedTitle, panel.embedDescription, types);
@@ -263,14 +307,16 @@ export class PanelService {
       // Send a fresh message now that we have authoritative state.
       const { messageId } = await this.gateway.sendPanelMessage(panel.channelId, payload);
       await this.db.panel.update({ where: { id: panel.id }, data: { messageId } });
-      return;
+      return { messageId, recreated: true };
     }
     try {
       await this.gateway.editPanelMessage(panel.channelId, panel.messageId, payload);
+      return { messageId: panel.messageId, recreated: false };
     } catch {
       // Live message gone — recreate.
       const { messageId } = await this.gateway.sendPanelMessage(panel.channelId, payload);
       await this.db.panel.update({ where: { id: panel.id }, data: { messageId } });
+      return { messageId, recreated: true };
     }
   }
 
