@@ -1,5 +1,6 @@
 import '@sapphire/plugin-logger/register';
 
+import { db } from '@discord-bot/database';
 import { container as diContainer } from '@sapphire/framework';
 import {
   ApplicationCommandRegistries,
@@ -12,7 +13,7 @@ import { GatewayIntentBits, Partials } from 'discord.js';
 import { branding } from './config/branding.js';
 import { env } from './config/env.js';
 import { attachServices } from './container.js';
-import { startHealthcheck } from './healthcheck/server.js';
+import { startInternalApi } from './internal-api/server.js';
 import { sapphireLogLevel } from './lib/logger.js';
 import { DjsDiscordGateway } from './services/ports/discordGateway.djs.js';
 
@@ -73,9 +74,16 @@ for (const signal of ['SIGTERM', 'SIGINT'] as const) {
 
 try {
   await client.login(env.DISCORD_TOKEN);
-  await startHealthcheck({
+  await startInternalApi({
     port: env.PORT,
-    isReady: () => client.isReady(),
+    token: env.INTERNAL_API_TOKEN,
+    context: {
+      client,
+      db,
+      panel: diContainer.services.panel,
+      branding,
+      isReady: () => client.isReady(),
+    },
   });
   client.logger.info(`🚀 ${branding.name} bootstrap complete (env=${env.NODE_ENV})`);
 } catch (err) {
