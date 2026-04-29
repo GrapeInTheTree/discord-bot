@@ -133,34 +133,27 @@ export class TicketService {
       throw e;
     }
 
-    // Tight transaction over just the two DB writes. No external calls
-    // inside, so no timeout / transaction-tracking risk. The partial
-    // unique index `ticket_open_dedupe` enforces dedupe — if a racer
-    // slipped in between our SELECT above and this INSERT, Prisma
-    // raises P2002 and we map it to ConflictError.
+    // Two separate writes — no interactive transaction. Prisma 7's
+    // driver-adapter (pg) `_transactionWithCallback` path is unreliable
+    // on this stack (P2028 "Transaction not found" raised even on
+    // sub-millisecond callbacks). The Ticket INSERT carries the
+    // critical invariants (channel link, partial unique dedupe); the
+    // TicketEvent INSERT is metadata that, if it fails, leaves the
+    // ticket usable but missing its 'opened' marker — recoverable in
+    // a follow-up audit, and the channelDelete listener / lifecycle
+    // events don't depend on it.
     let ticket: Ticket;
     try {
-      ticket = await this.db.$transaction(async (tx) => {
-        const created = await tx.ticket.create({
-          data: {
-            guildId: input.guildId,
-            panelId: input.panelId,
-            panelTypeId: type.id,
-            channelId: createdChannelId,
-            number,
-            openerId: input.openerId,
-            status: TicketStatus.open,
-          },
-        });
-        await tx.ticketEvent.create({
-          data: {
-            ticketId: created.id,
-            type: 'opened',
-            actorId: input.openerId,
-            metadata: { channelId: createdChannelId, number },
-          },
-        });
-        return created;
+      ticket = await this.db.ticket.create({
+        data: {
+          guildId: input.guildId,
+          panelId: input.panelId,
+          panelTypeId: type.id,
+          channelId: createdChannelId,
+          number,
+          openerId: input.openerId,
+          status: TicketStatus.open,
+        },
       });
     } catch (e) {
       await this.gateway
@@ -178,6 +171,24 @@ export class TicketService {
         return err(e);
       }
       throw e;
+    }
+
+    // Best-effort 'opened' event. Failure is logged but doesn't roll
+    // back the ticket — the event is audit-trail metadata, not a
+    // critical invariant. A future audit job can backfill from the
+    // ticket's openedAt + openerId if needed.
+    try {
+      await this.db.ticketEvent.create({
+        data: {
+          ticketId: ticket.id,
+          type: 'opened',
+          actorId: input.openerId,
+          metadata: { channelId: createdChannelId, number },
+        },
+      });
+    } catch (eventErr) {
+      // eslint-disable-next-line no-console
+      console.warn('[openTicket] failed to create opened event', eventErr);
     }
 
     // Send welcome message OUTSIDE the lock — Discord call is slow.
