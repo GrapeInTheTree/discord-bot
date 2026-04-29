@@ -32,18 +32,34 @@ export async function withAdvisoryLock<T>(
   fn: (tx: Prisma.TransactionClient) => Promise<T>,
 ): Promise<T> {
   try {
-    return await db.$transaction(async (tx) => {
-      // SET LOCAL applies only to this transaction. A literal interpolation
-      // is necessary because Postgres parses lock_timeout as a parser-level
-      // setting (parameters not allowed). The value is a number we control,
-      // so this is safe from injection.
-      const timeoutLiteral = Math.max(0, Math.floor(options.timeoutMs));
-      await tx.$executeRawUnsafe(`SET LOCAL lock_timeout = ${String(timeoutLiteral)}`);
-      // pg_advisory_xact_lock accepts a single bigint; Prisma serializes
-      // ${key} as a parameterized bigint argument.
-      await tx.$executeRaw`SELECT pg_advisory_xact_lock(${options.key})`;
-      return await fn(tx);
-    });
+    return await db.$transaction(
+      async (tx) => {
+        // SET LOCAL applies only to this transaction. A literal interpolation
+        // is necessary because Postgres parses lock_timeout as a parser-level
+        // setting (parameters not allowed). The value is a number we control,
+        // so this is safe from injection.
+        const timeoutLiteral = Math.max(0, Math.floor(options.timeoutMs));
+        await tx.$executeRawUnsafe(`SET LOCAL lock_timeout = ${String(timeoutLiteral)}`);
+        // pg_advisory_xact_lock accepts a single bigint; Prisma serializes
+        // ${key} as a parameterized bigint argument.
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(${options.key})`;
+        return await fn(tx);
+      },
+      {
+        // Prisma's defaults (maxWait 2s, timeout 5s) are tight for a
+        // production VM where Postgres + bot share a small instance and a
+        // ticket-open path does several DB queries plus an advisory-lock
+        // acquisition. Crossing the 5s ceiling makes Prisma drop the
+        // transaction id and raise P2028 (Transaction not found) on the
+        // very next $executeRaw — exactly the error pattern observed
+        // during VM smoke testing. 15s is generous for the bounded work
+        // here (one lock + a handful of SELECTs / INSERTs); we don't
+        // want this to ever be the user-visible timeout, just a safety
+        // ceiling well past worst-case latency.
+        maxWait: 5_000,
+        timeout: 15_000,
+      },
+    );
   } catch (err) {
     if (isPostgresError(err, LOCK_NOT_AVAILABLE_SQLSTATE)) {
       throw new ConflictError('Could not acquire lock — operation already in progress', err);
