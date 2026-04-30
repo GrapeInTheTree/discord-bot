@@ -19,8 +19,6 @@ export default defineConfig({
   treeshake: true,
   splitting: false,
   // `pg`/`pg-native` are runtime-only and pulled from node_modules at
-  // production time. `@prisma/*` externalization lingers from the
-  // pre-PR-6 transition; PR-6 removes both the patterns and the
-  // package altogether.
-  external: [/^@prisma\//, 'pg', 'pg-native'],
+  // production time.
+  external: ['pg', 'pg-native'],
 });

@@ -19,12 +19,8 @@ export default tseslint.config(
       '**/coverage/**',
       '**/node_modules/**',
       '**/*.tsbuildinfo',
-      '**/prisma/migrations/**',
-      // Prisma 7 prisma-client generator output. These TS files are
-      // regenerated on every `prisma generate` and follow the model
-      // PascalCase naming from schema.prisma — they're not source we
-      // maintain.
-      '**/src/generated/**',
+      // Drizzle migration SQL — generated artefacts, not source we lint.
+      '**/packages/database/drizzle/**',
       '**/.changeset/**',
     ],
   },
@@ -177,10 +173,10 @@ export default tseslint.config(
   },
 
   // Database bootstrap legitimately reads NODE_ENV for log mode + lazy
-  // singleton caching (HMR safety). Both Prisma (legacy) and Drizzle
-  // clients use the same pattern; this exemption covers both files.
+  // singleton caching (HMR safety). The exemption applies to the
+  // Drizzle client only; the Prisma client was deleted in PR-6.
   {
-    files: ['**/packages/database/src/client.ts', '**/packages/database/src/client.drizzle.ts'],
+    files: ['**/packages/database/src/client.drizzle.ts'],
     rules: {
       'no-restricted-syntax': 'off',
       '@typescript-eslint/dot-notation': 'off',
