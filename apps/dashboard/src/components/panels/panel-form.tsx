@@ -9,6 +9,7 @@ import { toast } from 'sonner';
 import { z } from 'zod';
 
 import { createPanel, updatePanel } from '@/actions/panels';
+import { MarkdownHint } from '@/components/panels/markdown-hint';
 import { PanelPreview } from '@/components/panels/panel-preview';
 import { ChannelPicker } from '@/components/pickers/channel-picker';
 import { Button } from '@/components/ui/button';
@@ -191,7 +192,9 @@ export function PanelForm({ guildId, channels, initial }: PanelFormProps): React
           />
           {errors.embedTitle !== undefined ? (
             <p className="text-xs text-[color:var(--color-danger)]">{errors.embedTitle.message}</p>
-          ) : null}
+          ) : (
+            <MarkdownHint variant="limited" />
+          )}
         </div>
 
         <div className="grid gap-2">
@@ -207,10 +210,7 @@ export function PanelForm({ guildId, channels, initial }: PanelFormProps): React
               {errors.embedDescription.message}
             </p>
           ) : (
-            <p className="text-xs text-[color:var(--color-fg-muted)]">
-              Discord markdown supported (bold, italics, lists). Use real line breaks for paragraph
-              spacing.
-            </p>
+            <MarkdownHint variant="full" />
           )}
         </div>
 

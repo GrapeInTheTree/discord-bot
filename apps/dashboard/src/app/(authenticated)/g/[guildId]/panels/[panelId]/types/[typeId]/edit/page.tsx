@@ -1,9 +1,11 @@
 import { dbDrizzle, eq, schema } from '@hearth/database';
+import { tickets as i18nTickets } from '@hearth/tickets-core';
 import { notFound, redirect } from 'next/navigation';
 
 import { Topbar } from '@/components/layout/topbar';
 import { TicketTypeForm } from '@/components/panels/ticket-type-form';
 import { Card, CardContent } from '@/components/ui/card';
+import { branding } from '@/config/branding';
 import { auth } from '@/lib/auth';
 import { callBot } from '@/lib/botClient';
 import type { GuildResources } from '@/types/bot';
@@ -65,6 +67,8 @@ export default async function EditTypePage({
             panelId={panelId}
             categories={resources.value.categories}
             roles={resources.value.roles}
+            defaultWelcomeBody={i18nTickets.welcome.default}
+            brandingFooterText={branding.footerText}
             initial={{
               typeId: type.id,
               name: type.name,

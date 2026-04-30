@@ -37,11 +37,40 @@ export async function handlePanelRender(
 }
 
 /**
+ * POST /internal/panels/:panelId/repost
+ *
+ * Drop the existing panel Discord message (best-effort) and send a fresh
+ * one with the current DB state. DB row stays — only `panel.messageId`
+ * changes. Used by the dashboard's "Repost to channel" button so the
+ * operator can resurface a panel that's scrolled off the channel.
+ */
+export async function handlePanelRepost(
+  ctx: InternalApiContext,
+  panelId: string,
+  res: ServerResponse,
+): Promise<void> {
+  try {
+    const result = await ctx.panel.repostPanel(panelId);
+    if (!result.ok) {
+      sendError(res, 'not_found', result.error.message);
+      return;
+    }
+    sendJson(res, 200, result.value);
+  } catch (e) {
+    if (e instanceof DiscordApiError) {
+      sendError(res, 'discord_unavailable', e.message);
+      return;
+    }
+    throw e;
+  }
+}
+
+/**
  * DELETE /internal/panels/:panelId
  *
  * Remove the Discord message (best-effort) and the DB row. Cascades to types.
  * Tickets reference panels via FK RESTRICT; if any exist, the underlying
- * Prisma error surfaces as a 500 (caller should delete tickets first).
+ * Drizzle error surfaces as a 500 (caller should delete tickets first).
  */
 export async function handlePanelDelete(
   ctx: InternalApiContext,

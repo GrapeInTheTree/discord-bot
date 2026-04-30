@@ -222,6 +222,40 @@ export async function retrySyncPanel(args: {
   });
 }
 
+/**
+ * Repost the panel to the channel — delete the existing Discord message
+ * and send a fresh one with the same DB state. The panel row, ticket
+ * types, and any open tickets all stay; only `panel.messageId` rotates.
+ * Use case: surface the panel at the bottom of the channel again after
+ * channel chatter has buried it. Operator-triggered (not automatic on
+ * every edit) so the channel doesn't accumulate unread badges.
+ */
+export async function repostPanel(args: {
+  readonly guildId: string;
+  readonly panelId: string;
+}): Promise<PanelActionResult<{ panelId: string; messageId: string }>> {
+  const auth = await authorizeGuild(args.guildId);
+  if (isErr(auth)) return err(auth.error);
+
+  const result = await callBot<{ messageId: string; previousMessageId: string }>({
+    path: `/internal/panels/${args.panelId}/repost`,
+    method: 'POST',
+    body: {},
+  });
+  revalidatePath(`/g/${args.guildId}/panels/${args.panelId}`);
+  if (isErr(result)) {
+    return ok({
+      value: { panelId: args.panelId, messageId: '' },
+      discordSyncFailed: true,
+      discordSyncMessage: result.error.message,
+    });
+  }
+  return ok({
+    value: { panelId: args.panelId, messageId: result.value.messageId },
+    discordSyncFailed: false,
+  });
+}
+
 // Suppress unused warning for getPanelService until ticket-type actions
 // land in PR-5 — keep the helper here so the PR-5 diff stays tight.
 export const _unusedGetPanelService = getPanelService;

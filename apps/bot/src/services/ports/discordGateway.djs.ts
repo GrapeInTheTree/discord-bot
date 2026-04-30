@@ -193,6 +193,17 @@ export class DjsDiscordGateway implements DiscordGateway {
     });
   }
 
+  public async deletePanelMessage(channelId: string, messageId: string): Promise<void> {
+    await this.wrap('deletePanelMessage', async () => {
+      const channel = await this.fetchTextChannel(channelId);
+      // Swallow 404 / 10008 (Unknown Message) — the message may already
+      // be gone (operator deleted manually, or a previous repost
+      // succeeded but DB write failed). The repost flow tolerates this
+      // and sends a fresh message regardless.
+      await channel.messages.delete(messageId).catch(() => undefined);
+    });
+  }
+
   public async resolveMemberDisplay(guildId: string, userId: string): Promise<string> {
     return await this.wrap('resolveMemberDisplay', async () => {
       const guild = await this.client.guilds.fetch(guildId);

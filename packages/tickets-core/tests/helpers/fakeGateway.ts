@@ -113,6 +113,12 @@ export class FakeDiscordGateway implements DiscordGateway {
     return Promise.resolve();
   }
 
+  public deletePanelMessage(channelId: string, messageId: string): Promise<void> {
+    this.record('deletePanelMessage', { channelId, messageId });
+    this.maybeThrow('deletePanelMessage');
+    return Promise.resolve();
+  }
+
   public resolveMemberDisplay(guildId: string, userId: string): Promise<string> {
     this.record('resolveMemberDisplay', { guildId, userId });
     this.maybeThrow('resolveMemberDisplay');

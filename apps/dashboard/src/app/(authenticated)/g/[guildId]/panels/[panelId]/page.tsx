@@ -6,6 +6,7 @@ import { Topbar } from '@/components/layout/topbar';
 import { DeletePanelButton } from '@/components/panels/delete-panel-button';
 import { PanelPreview } from '@/components/panels/panel-preview';
 import { RemoveTypeButton } from '@/components/panels/remove-type-button';
+import { RepostPanelButton } from '@/components/panels/repost-panel-button';
 import { RetrySyncButton } from '@/components/panels/retry-sync-button';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -43,9 +44,12 @@ export default async function PanelDetailPage({
         title={panel.embedTitle}
         description={`#${panel.channelId} · ${panel.ticketTypes.length} type${panel.ticketTypes.length === 1 ? '' : 's'}`}
         action={
-          <Button asChild variant="secondary" size="sm">
-            <Link href={`/g/${guildId}/panels/${panelId}/edit`}>Edit</Link>
-          </Button>
+          <div className="flex items-center gap-2">
+            {!isStale ? <RepostPanelButton guildId={guildId} panelId={panelId} /> : null}
+            <Button asChild variant="secondary" size="sm">
+              <Link href={`/g/${guildId}/panels/${panelId}/edit`}>Edit</Link>
+            </Button>
+          </div>
         }
       />
       <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-6 px-8 py-12">

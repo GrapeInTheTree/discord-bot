@@ -89,6 +89,12 @@ export interface DiscordGateway {
     payload: PanelMessagePayload,
   ): Promise<void>;
 
+  /** Hard-delete a panel message. Used by the "Repost panel" flow to
+   *  drop the existing message before sending a fresh one further down
+   *  the channel. Best-effort — silently swallows already-gone messages
+   *  so the caller doesn't have to branch on 404. */
+  deletePanelMessage(channelId: string, messageId: string): Promise<void>;
+
   /** Resolve a member's display name for system messages. Returns id-string fallback if not cached. */
   resolveMemberDisplay(guildId: string, userId: string): Promise<string>;
 }

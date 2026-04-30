@@ -309,6 +309,83 @@ describe('PanelService.getPanelTypeForOpen', () => {
   });
 });
 
+describe('PanelService.repostPanel', () => {
+  let testDb: TestDb;
+  let gateway: FakeDiscordGateway;
+  let service: PanelService;
+  let panelId: string;
+
+  beforeEach(async () => {
+    testDb = await createTestDb();
+    gateway = new FakeDiscordGateway();
+    service = new PanelService(testDb.db, gateway, branding);
+    const upserted = await service.upsertPanel(baseUpsert);
+    if (!upserted.ok) throw new Error('seed failed');
+    panelId = upserted.value.panel.id;
+    await service.addTicketType(typeInput(panelId, 'question'));
+    await service.addTicketType(typeInput(panelId, 'business-offer'));
+    gateway.reset();
+  });
+
+  afterEach(async () => {
+    await testDb.close();
+  });
+
+  it('deletes the existing message and sends a fresh one with the same buttons', async () => {
+    const result = await service.repostPanel(panelId);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(gateway.callsOf('deletePanelMessage')).toHaveLength(1);
+    expect(gateway.callsOf('sendPanelMessage')).toHaveLength(1);
+    // New messageId rotates; previousMessageId points at the seed.
+    expect(result.value.messageId).not.toBe(result.value.previousMessageId);
+    // DB row's messageId is the new one.
+    const [row] = await testDb.db
+      .select()
+      .from(schema.panel)
+      .where(eq(schema.panel.id, panelId))
+      .limit(1);
+    expect(row?.messageId).toBe(result.value.messageId);
+  });
+
+  it('preserves all ticket types — buttons on the new message match the DB', async () => {
+    await service.repostPanel(panelId);
+    // Both types still exist in the DB after repost.
+    expect(await countRows(testDb, schema.panelTicketType)).toBe(2);
+    // The sendPanelMessage call carried both type buttons in its payload.
+    const send = gateway.callsOf('sendPanelMessage')[0];
+    expect(send).toBeDefined();
+    const args = send!.args as { payload: { components: unknown[] } };
+    expect(args.payload.components).not.toHaveLength(0);
+  });
+
+  it('skips delete when the existing messageId is the placeholder (panel never sent)', async () => {
+    // Force the panel into the placeholder state by manually patching
+    // the row — simulates an upsertPanel that failed mid-flight.
+    await testDb.db
+      .update(schema.panel)
+      .set({ messageId: 'pending' })
+      .where(eq(schema.panel.id, panelId));
+    gateway.reset();
+
+    const result = await service.repostPanel(panelId);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(gateway.callsOf('deletePanelMessage')).toHaveLength(0);
+    expect(gateway.callsOf('sendPanelMessage')).toHaveLength(1);
+    expect(result.value.previousMessageId).toBe('pending');
+  });
+
+  it('returns NotFoundError when the panel id does not exist', async () => {
+    const result = await service.repostPanel('does-not-exist');
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.code).toBe('NOT_FOUND');
+    expect(gateway.callsOf('deletePanelMessage')).toHaveLength(0);
+    expect(gateway.callsOf('sendPanelMessage')).toHaveLength(0);
+  });
+});
+
 // Suppress unused — eq is imported for consistency with other test files
 // that perform select-with-where assertions. Keep it imported so future
 // tests in this file don't need to add it back.

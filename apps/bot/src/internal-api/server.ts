@@ -4,7 +4,7 @@ import { checkBearer } from './auth.js';
 import { sendError } from './json.js';
 import { handleGuildResources, handleGuildsList } from './routes/guilds.js';
 import { handleHealthz } from './routes/healthz.js';
-import { handlePanelDelete, handlePanelRender } from './routes/panels.js';
+import { handlePanelDelete, handlePanelRender, handlePanelRepost } from './routes/panels.js';
 import { handleResolve } from './routes/resolve.js';
 import type { InternalApiContext } from './types.js';
 
@@ -68,6 +68,12 @@ function matchRoute(
     const [, panelId] = renderMatch;
     if (panelId === undefined) return null;
     return { requireAuth: true, handle: async () => handlePanelRender(ctx, panelId, res) };
+  }
+  const repostMatch = /^\/internal\/panels\/([^/]+)\/repost$/.exec(pathname);
+  if (method === 'POST' && repostMatch !== null) {
+    const [, panelId] = repostMatch;
+    if (panelId === undefined) return null;
+    return { requireAuth: true, handle: async () => handlePanelRepost(ctx, panelId, res) };
   }
   const deleteMatch = /^\/internal\/panels\/([^/]+)$/.exec(pathname);
   if (method === 'DELETE' && deleteMatch !== null) {

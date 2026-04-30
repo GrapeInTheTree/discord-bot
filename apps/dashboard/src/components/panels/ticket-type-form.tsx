@@ -8,6 +8,8 @@ import { toast } from 'sonner';
 import { z } from 'zod';
 
 import { addTicketType, editTicketType } from '@/actions/ticket-types';
+import { MarkdownHint } from '@/components/panels/markdown-hint';
+import { WelcomePreview } from '@/components/panels/welcome-preview';
 import { CategoryPicker } from '@/components/pickers/category-picker';
 import { RoleMultiPicker } from '@/components/pickers/role-multi-picker';
 import { Button } from '@/components/ui/button';
@@ -38,6 +40,13 @@ interface TicketTypeFormProps {
   readonly panelId: string;
   readonly categories: readonly Category[];
   readonly roles: readonly Role[];
+  /** Default welcome body shown in the preview when the textarea is
+   *  empty. Server-injected via the page so the preview falls back to
+   *  the same i18n.tickets.welcome.default copy the bot would post. */
+  readonly defaultWelcomeBody: string;
+  /** Branding footer text — same env-injected string the bot puts on
+   *  the welcome embed. `undefined` when the operator left it blank. */
+  readonly brandingFooterText: string | undefined;
   /**
    * When provided, the form is in "edit" mode for an existing type.
    * Name is locked (renaming requires remove + add to keep slash-command
@@ -111,6 +120,8 @@ export function TicketTypeForm({
   panelId,
   categories,
   roles,
+  defaultWelcomeBody,
+  brandingFooterText,
   initial,
 }: TicketTypeFormProps): React.JSX.Element {
   const router = useRouter();
@@ -252,169 +263,189 @@ export function TicketTypeForm({
       <p className="text-xs text-[color:var(--color-fg-muted)]">{helper}</p>
     );
 
+  // Live preview tracks the welcomeMessage textarea. `watch` re-renders
+  // the form on every keystroke; the preview ↑ subtree gets the fresh
+  // string and re-runs the markdown renderer.
+  const watchedWelcome = watch('welcomeMessage');
+
   return (
     <form
       onSubmit={(e) => {
         void handleSubmit(onSubmit)(e);
       }}
-      className="flex max-w-2xl flex-col gap-4"
+      className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,360px)]"
     >
-      {!isEdit ? (
+      <div className="flex flex-col gap-4">
+        {!isEdit ? (
+          <div className="grid gap-2">
+            <Label htmlFor="type-name">Name (stable identifier)</Label>
+            <Input
+              id="type-name"
+              placeholder="e.g. support-question"
+              maxLength={32}
+              aria-invalid={errors.name !== undefined}
+              {...register('name')}
+            />
+            {helperOrError(
+              errors.name,
+              <>
+                Lowercase letters, digits, and hyphens. Used internally — to rename, remove and
+                re-add.
+              </>,
+            )}
+          </div>
+        ) : null}
+
         <div className="grid gap-2">
-          <Label htmlFor="type-name">Name (stable identifier)</Label>
+          <Label htmlFor="type-label">Button label</Label>
           <Input
-            id="type-name"
-            placeholder="e.g. support-question"
-            maxLength={32}
-            aria-invalid={errors.name !== undefined}
-            {...register('name')}
+            id="type-label"
+            placeholder="e.g. Question"
+            maxLength={80}
+            aria-invalid={errors.label !== undefined}
+            {...register('label')}
+          />
+          {errors.label !== undefined ? (
+            <p className="text-xs text-[color:var(--color-danger)]">{errors.label.message}</p>
+          ) : null}
+        </div>
+
+        <div className="grid gap-2">
+          <Label htmlFor="type-emoji">Button emoji</Label>
+          <Input
+            id="type-emoji"
+            placeholder="e.g. ❓ (leave blank for none)"
+            maxLength={64}
+            {...register('emoji')}
+          />
+          {errors.emoji !== undefined ? (
+            <p className="text-xs text-[color:var(--color-danger)]">{errors.emoji.message}</p>
+          ) : null}
+        </div>
+
+        <div className="grid gap-2">
+          <Label htmlFor="type-style">Button style</Label>
+          <select
+            id="type-style"
+            {...register('buttonStyle')}
+            className="flex h-9 w-full appearance-none rounded-[var(--radius)] border border-[color:var(--color-border)] bg-[color:var(--color-bg)] px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)]"
+          >
+            {BUTTON_STYLES.map((s) => (
+              <option key={s.value} value={s.value}>
+                {s.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="grid gap-2">
+          <Label htmlFor="type-category">Active category</Label>
+          <Controller
+            name="activeCategoryId"
+            control={control}
+            render={({ field }) => (
+              <CategoryPicker
+                id="type-category"
+                categories={categories}
+                value={field.value}
+                onChange={field.onChange}
+              />
+            )}
           />
           {helperOrError(
-            errors.name,
-            <>
-              Lowercase letters, digits, and hyphens. Used internally — to rename, remove and
-              re-add.
-            </>,
+            errors.activeCategoryId,
+            'New tickets of this type are created as channels under this category.',
           )}
         </div>
-      ) : null}
 
-      <div className="grid gap-2">
-        <Label htmlFor="type-label">Button label</Label>
-        <Input
-          id="type-label"
-          placeholder="e.g. Question"
-          maxLength={80}
-          aria-invalid={errors.label !== undefined}
-          {...register('label')}
-        />
-        {errors.label !== undefined ? (
-          <p className="text-xs text-[color:var(--color-danger)]">{errors.label.message}</p>
-        ) : null}
-      </div>
-
-      <div className="grid gap-2">
-        <Label htmlFor="type-emoji">Button emoji</Label>
-        <Input
-          id="type-emoji"
-          placeholder="e.g. ❓ (leave blank for none)"
-          maxLength={64}
-          {...register('emoji')}
-        />
-        {errors.emoji !== undefined ? (
-          <p className="text-xs text-[color:var(--color-danger)]">{errors.emoji.message}</p>
-        ) : null}
-      </div>
-
-      <div className="grid gap-2">
-        <Label htmlFor="type-style">Button style</Label>
-        <select
-          id="type-style"
-          {...register('buttonStyle')}
-          className="flex h-9 w-full appearance-none rounded-[var(--radius)] border border-[color:var(--color-border)] bg-[color:var(--color-bg)] px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-accent)]"
-        >
-          {BUTTON_STYLES.map((s) => (
-            <option key={s.value} value={s.value}>
-              {s.label}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      <div className="grid gap-2">
-        <Label htmlFor="type-category">Active category</Label>
-        <Controller
-          name="activeCategoryId"
-          control={control}
-          render={({ field }) => (
-            <CategoryPicker
-              id="type-category"
-              categories={categories}
-              value={field.value}
-              onChange={field.onChange}
-            />
+        <div className="grid gap-2">
+          <Label htmlFor="type-support-roles">Support roles</Label>
+          <Controller
+            name="supportRoleIds"
+            control={control}
+            render={({ field }) => (
+              <RoleMultiPicker
+                id="type-support-roles"
+                roles={roles}
+                value={field.value}
+                onChange={field.onChange}
+                placeholder="Pick one or more support roles"
+              />
+            )}
+          />
+          {helperOrError(
+            errors.supportRoleIds,
+            'Roles allowed to claim, close, and reopen tickets of this type.',
           )}
-        />
-        {helperOrError(
-          errors.activeCategoryId,
-          'New tickets of this type are created as channels under this category.',
-        )}
-      </div>
+        </div>
 
-      <div className="grid gap-2">
-        <Label htmlFor="type-support-roles">Support roles</Label>
-        <Controller
-          name="supportRoleIds"
-          control={control}
-          render={({ field }) => (
-            <RoleMultiPicker
-              id="type-support-roles"
-              roles={roles}
-              value={field.value}
-              onChange={field.onChange}
-              placeholder="Pick one or more support roles"
-            />
+        <div className="grid gap-2">
+          <Label htmlFor="type-ping-roles">Ping roles (optional)</Label>
+          <Controller
+            name="pingRoleIds"
+            control={control}
+            render={({ field }) => (
+              <RoleMultiPicker
+                id="type-ping-roles"
+                roles={roles}
+                value={field.value}
+                onChange={field.onChange}
+                placeholder="Pick roles to mention on ticket creation"
+              />
+            )}
+          />
+          {errors.pingRoleIds !== undefined ? (
+            <p className="text-xs text-[color:var(--color-danger)]">{errors.pingRoleIds.message}</p>
+          ) : null}
+        </div>
+
+        <div className="grid gap-2">
+          <Label htmlFor="type-limit">Per-user limit</Label>
+          <Input
+            id="type-limit"
+            type="number"
+            min={1}
+            max={20}
+            aria-invalid={errors.perUserLimit !== undefined}
+            {...register('perUserLimit')}
+          />
+          {helperOrError(
+            errors.perUserLimit,
+            'Max simultaneous open tickets per user (default 1).',
           )}
-        />
-        {helperOrError(
-          errors.supportRoleIds,
-          'Roles allowed to claim, close, and reopen tickets of this type.',
-        )}
-      </div>
+        </div>
 
-      <div className="grid gap-2">
-        <Label htmlFor="type-ping-roles">Ping roles (optional)</Label>
-        <Controller
-          name="pingRoleIds"
-          control={control}
-          render={({ field }) => (
-            <RoleMultiPicker
-              id="type-ping-roles"
-              roles={roles}
-              value={field.value}
-              onChange={field.onChange}
-              placeholder="Pick roles to mention on ticket creation"
-            />
+        <div className="grid gap-2">
+          <Label htmlFor="type-welcome">Welcome message (optional)</Label>
+          <Textarea
+            id="type-welcome"
+            maxLength={4000}
+            placeholder="Leave blank to use the default welcome copy"
+            aria-invalid={errors.welcomeMessage !== undefined}
+            {...register('welcomeMessage')}
+          />
+          {errors.welcomeMessage !== undefined ? (
+            <p className="text-xs text-[color:var(--color-danger)]">
+              {errors.welcomeMessage.message}
+            </p>
+          ) : (
+            <MarkdownHint variant="full" />
           )}
-        />
-        {errors.pingRoleIds !== undefined ? (
-          <p className="text-xs text-[color:var(--color-danger)]">{errors.pingRoleIds.message}</p>
-        ) : null}
+        </div>
+
+        <div className="flex justify-end gap-2 pt-2">
+          <Button type="submit" disabled={isSubmitting}>
+            {isSubmitting ? 'Saving…' : isEdit ? 'Save changes' : 'Add type'}
+          </Button>
+        </div>
       </div>
 
-      <div className="grid gap-2">
-        <Label htmlFor="type-limit">Per-user limit</Label>
-        <Input
-          id="type-limit"
-          type="number"
-          min={1}
-          max={20}
-          aria-invalid={errors.perUserLimit !== undefined}
-          {...register('perUserLimit')}
+      <div className="lg:sticky lg:top-20 lg:self-start">
+        <WelcomePreview
+          body={watchedWelcome}
+          defaultBody={defaultWelcomeBody}
+          footerText={brandingFooterText}
         />
-        {helperOrError(errors.perUserLimit, 'Max simultaneous open tickets per user (default 1).')}
-      </div>
-
-      <div className="grid gap-2">
-        <Label htmlFor="type-welcome">Welcome message (optional)</Label>
-        <Textarea
-          id="type-welcome"
-          maxLength={4000}
-          placeholder="Leave blank to use the default welcome copy"
-          aria-invalid={errors.welcomeMessage !== undefined}
-          {...register('welcomeMessage')}
-        />
-        {errors.welcomeMessage !== undefined ? (
-          <p className="text-xs text-[color:var(--color-danger)]">
-            {errors.welcomeMessage.message}
-          </p>
-        ) : null}
-      </div>
-
-      <div className="flex justify-end gap-2 pt-2">
-        <Button type="submit" disabled={isSubmitting}>
-          {isSubmitting ? 'Saving…' : isEdit ? 'Save changes' : 'Add type'}
-        </Button>
       </div>
     </form>
   );

@@ -4,7 +4,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { setupTestDb, type DashboardTestDb } from '../../helpers/testDb.js';
 
-import { createPanel, deletePanel, retrySyncPanel, updatePanel } from '@/actions/panels';
+import {
+  createPanel,
+  deletePanel,
+  repostPanel,
+  retrySyncPanel,
+  updatePanel,
+} from '@/actions/panels';
 
 const botClientMock = vi.hoisted(() => ({
   callBot: vi.fn(),
@@ -233,5 +239,52 @@ describe('retrySyncPanel', () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.value.discordSyncFailed).toBe(true);
+  });
+});
+
+describe('repostPanel', () => {
+  let testDb: DashboardTestDb;
+
+  beforeEach(async () => {
+    testDb = await setupTestDb();
+    authMock.authorizeGuild.mockResolvedValue(ok({ userId: 'u1', username: 'tester' }));
+  });
+
+  afterEach(async () => {
+    await testDb.close();
+    vi.clearAllMocks();
+  });
+
+  it('reports success with the new messageId from the bot', async () => {
+    botClientMock.callBot.mockResolvedValue(ok({ messageId: 'm-new', previousMessageId: 'm-old' }));
+    const result = await repostPanel({ guildId, panelId: 'p1' });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.discordSyncFailed).toBe(false);
+    expect(result.value.value.messageId).toBe('m-new');
+    expect(botClientMock.callBot).toHaveBeenCalledWith(
+      expect.objectContaining({ path: '/internal/panels/p1/repost', method: 'POST' }),
+    );
+  });
+
+  it('reports discordSyncFailed when bot is unreachable', async () => {
+    botClientMock.callBot.mockResolvedValue({
+      ok: false,
+      error: new DiscordApiError('bot down'),
+    });
+    const result = await repostPanel({ guildId, panelId: 'p1' });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.discordSyncFailed).toBe(true);
+  });
+
+  it('rejects unauthorized callers', async () => {
+    authMock.authorizeGuild.mockResolvedValue({
+      ok: false,
+      error: new DiscordApiError('Manage Guild required'),
+    });
+    const result = await repostPanel({ guildId, panelId: 'p1' });
+    expect(result.ok).toBe(false);
+    expect(botClientMock.callBot).not.toHaveBeenCalled();
   });
 });

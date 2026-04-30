@@ -7,7 +7,11 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { handleGuildResources, handleGuildsList } from '../../../src/internal-api/routes/guilds.js';
 import { handleHealthz } from '../../../src/internal-api/routes/healthz.js';
-import { handlePanelDelete, handlePanelRender } from '../../../src/internal-api/routes/panels.js';
+import {
+  handlePanelDelete,
+  handlePanelRender,
+  handlePanelRepost,
+} from '../../../src/internal-api/routes/panels.js';
 import type { InternalApiContext } from '../../../src/internal-api/types.js';
 
 interface FakeRes {
@@ -221,6 +225,44 @@ describe('POST /internal/panels/:id/render', () => {
     });
     const res = fakeRes();
     await expect(handlePanelRender(ctx, 'p-1', res)).rejects.toThrow('boom');
+  });
+});
+
+describe('POST /internal/panels/:id/repost', () => {
+  it('200 on success with new + previous messageId', async () => {
+    const repostPanel = vi.fn(async (_id: string) =>
+      ok({ messageId: 'msg-new', previousMessageId: 'msg-old' }),
+    );
+    const ctx = fakeContext({ panel: { repostPanel } as unknown as PanelService });
+    const res = fakeRes();
+    await handlePanelRepost(ctx, 'p-1', res);
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ messageId: 'msg-new', previousMessageId: 'msg-old' });
+    expect(repostPanel).toHaveBeenCalledWith('p-1');
+  });
+
+  it('404 when panel not found', async () => {
+    const ctx = fakeContext({
+      panel: {
+        repostPanel: async () => err(new NotFoundError('Panel missing')),
+      } as unknown as PanelService,
+    });
+    const res = fakeRes();
+    await handlePanelRepost(ctx, 'p-1', res);
+    expect(res.status).toBe(404);
+  });
+
+  it('503 on DiscordApiError', async () => {
+    const ctx = fakeContext({
+      panel: {
+        repostPanel: async () => {
+          throw new DiscordApiError('Discord 500');
+        },
+      } as unknown as PanelService,
+    });
+    const res = fakeRes();
+    await handlePanelRepost(ctx, 'p-1', res);
+    expect(res.status).toBe(503);
   });
 });
 

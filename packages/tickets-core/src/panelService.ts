@@ -192,6 +192,46 @@ export class PanelService {
   }
 
   /**
+   * Delete the existing panel message and send a fresh one with the
+   * same DB state. The DB row stays put (panel.id, ticketTypes,
+   * tickets all unchanged) — only `panel.messageId` is rewritten.
+   * Buttons on the new message keep working immediately because their
+   * `customId` encodes panel/type IDs (not Discord message IDs).
+   *
+   * Use case: the operator wants the panel to surface at the bottom
+   * of the channel again (channel got noisy, members can't find it).
+   * The "edit-in-place" path keeps the message fixed at its original
+   * channel position, which is good for low-noise but bad for
+   * discoverability — repost trades unread badges for visibility.
+   */
+  public async repostPanel(
+    panelId: string,
+  ): Promise<Result<{ messageId: string; previousMessageId: string }, NotFoundError>> {
+    const panel = await this.db.query.panel.findFirst({
+      where: eq(schema.panel.id, panelId),
+      with: { ticketTypes: true },
+    });
+    if (panel === undefined) return err(new NotFoundError(`Panel ${panelId} not found`));
+
+    const previousMessageId = panel.messageId;
+    if (previousMessageId !== PLACEHOLDER_MESSAGE_ID) {
+      // Best-effort delete — channel.messages.delete() in the djs
+      // gateway swallows 404s, so already-gone messages don't fail
+      // the flow. Operator gets the new message either way.
+      await this.gateway.deletePanelMessage(panel.channelId, previousMessageId);
+    }
+
+    const payload = this.buildPanelPayload(
+      panel.embedTitle,
+      panel.embedDescription,
+      panel.ticketTypes,
+    );
+    const { messageId } = await this.gateway.sendPanelMessage(panel.channelId, payload);
+    await this.db.update(schema.panel).set({ messageId }).where(eq(schema.panel.id, panel.id));
+    return ok({ messageId, previousMessageId });
+  }
+
+  /**
    * Hard-delete a panel: remove the Discord message (best-effort) and the DB
    * row. Cascades to PanelTicketType via the FK. Tickets reference the panel
    * with FK RESTRICT — caller must delete tickets first or this returns the
