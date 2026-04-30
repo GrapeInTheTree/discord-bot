@@ -1,9 +1,11 @@
 import { spawnSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-import { type DbClient, PrismaClient } from '@hearth/database';
-import { PrismaPg } from '@prisma/adapter-pg';
+import { type DbDrizzle, schema } from '@hearth/database';
 import { PostgreSqlContainer, type StartedPostgreSqlContainer } from '@testcontainers/postgresql';
+import { drizzle } from 'drizzle-orm/node-postgres';
+import { Pool } from 'pg';
 
 /**
  * Probe whether Docker is reachable so integration tests can self-skip on
@@ -15,14 +17,15 @@ export function isDockerAvailable(): boolean {
   return result.status === 0;
 }
 
-// Spins a real Postgres 16 container, runs `prisma migrate deploy` against
-// it (using the same migration SQL the production deploy will run), and
-// returns a typed Prisma client wired with the same PrismaPg adapter that
-// production uses. This validates schema, migrations, indexes, and the
-// driver-adapter pattern end-to-end — things the unit-level fakeDb can't.
+// Spins a real Postgres 16 container, applies the canonical Drizzle
+// migration (`packages/database/drizzle/0000_init.sql`), and returns a
+// Drizzle client wired through `pg.Pool`. Validates schema, indexes,
+// partial unique index, FK enforcement, and JSONB type parsers
+// end-to-end against production-equivalent Postgres — things the
+// pglite-based unit tests cover semantically but not at the wire level.
 
 export interface IntegrationDb {
-  readonly db: DbClient;
+  readonly db: DbDrizzle;
   readonly databaseUrl: string;
   readonly container: StartedPostgreSqlContainer;
   close(): Promise<void>;
@@ -30,46 +33,49 @@ export interface IntegrationDb {
 
 const POSTGRES_IMAGE = 'postgres:16-alpine';
 
-// Resolve the database package directory once. The migration SQL + prisma
-// schema both live there and are addressed by `prisma migrate deploy`.
-const databasePackageDir = resolve(import.meta.dirname, '../../../../packages/database');
+const MIGRATION_PATH = resolve(
+  import.meta.dirname,
+  '../../../../packages/database/drizzle/0000_init.sql',
+);
+
+let cachedSql: string | undefined;
+
+function loadInitSql(): string {
+  if (cachedSql !== undefined) return cachedSql;
+  const raw = readFileSync(MIGRATION_PATH, 'utf-8');
+  // drizzle-kit emits `--> statement-breakpoint` between DDL statements.
+  // pg's query handles a multi-statement string fine, but the markers
+  // confuse the parser, so strip them.
+  cachedSql = raw.replace(/--> statement-breakpoint\n?/g, '');
+  return cachedSql;
+}
 
 export async function startIntegrationDb(): Promise<IntegrationDb> {
   const container = await new PostgreSqlContainer(POSTGRES_IMAGE)
-    .withDatabase('discord_bot_test')
-    .withUsername('bot')
-    .withPassword('bot')
+    .withDatabase('hearth_test')
+    .withUsername('hearth')
+    .withPassword('hearth')
     .start();
 
   const databaseUrl = container.getConnectionUri();
 
-  // `prisma migrate deploy` is the production-equivalent migration runner.
-  // We invoke it via pnpm so its prisma-config.ts loader runs, picking up
-  // DATABASE_URL from env.
-  const result = spawnSync('pnpm', ['exec', 'prisma', 'migrate', 'deploy'], {
-    cwd: databasePackageDir,
-    env: { ...process.env, DATABASE_URL: databaseUrl },
-    encoding: 'utf-8',
-  });
-  if (result.status !== 0) {
-    await container.stop();
-    throw new Error(
-      `prisma migrate deploy failed (status=${String(result.status)}):\n${result.stdout}\n${result.stderr}`,
-    );
-  }
+  const pool = new Pool({ connectionString: databaseUrl });
+  // Apply the canonical schema. PR-4 wraps this in a `runMigrations`
+  // helper that's also called from bot boot; for now the test inlines
+  // the read+exec.
+  await pool.query(loadInitSql());
 
-  const adapter = new PrismaPg({ connectionString: databaseUrl });
-  const client = new PrismaClient({ adapter });
+  const drizzleClient = drizzle(pool, { schema });
   // Smoke-test the connection so test failures surface here rather than
   // mid-test.
-  await client.$queryRaw`SELECT 1`;
+  await pool.query('SELECT 1');
 
   return {
-    db: client as unknown as DbClient,
+    db: drizzleClient as unknown as DbDrizzle,
     databaseUrl,
     container,
     async close() {
-      await client.$disconnect();
+      await pool.end();
       await container.stop();
     },
   };

@@ -1,3 +1,4 @@
+import { and, eq, schema } from '@hearth/database';
 import { PanelService, type UpsertPanelInput } from '@hearth/tickets-core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
@@ -38,9 +39,10 @@ describe.runIf(SHOULD_RUN)('integration: panel idempotency (real Postgres)', () 
     expect(second.ok).toBe(true);
     if (second.ok) expect(second.value.created).toBe(false);
 
-    const rows = await env.db.panel.findMany({
-      where: { guildId: 'g-idem', channelId: 'c-idem-support' },
-    });
+    const rows = await env.db
+      .select()
+      .from(schema.panel)
+      .where(and(eq(schema.panel.guildId, 'g-idem'), eq(schema.panel.channelId, 'c-idem-support')));
     expect(rows).toHaveLength(1);
 
     // First call sends a fresh message; second edits the live one.
@@ -48,7 +50,14 @@ describe.runIf(SHOULD_RUN)('integration: panel idempotency (real Postgres)', () 
     expect(gateway.callsOf('editPanelMessage')).toHaveLength(1);
 
     // Panel created with zero types — operator must add via /panel ticket-type add.
-    const types = await env.db.panelTicketType.findMany({ where: { panelId: rows[0]?.id } });
+    const panelId = rows[0]?.id;
+    const types =
+      panelId === undefined
+        ? []
+        : await env.db
+            .select()
+            .from(schema.panelTicketType)
+            .where(eq(schema.panelTicketType.panelId, panelId));
     expect(types).toHaveLength(0);
   });
 });

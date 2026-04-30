@@ -1,4 +1,4 @@
-import { TicketStatus } from '@hearth/database';
+import { and, asc, count, eq, inArray, schema, TicketStatus } from '@hearth/database';
 import { GuildConfigService } from '@hearth/tickets-core';
 import { type AddTicketTypeInput, PanelService, type UpsertPanelInput } from '@hearth/tickets-core';
 import { TicketService } from '@hearth/tickets-core';
@@ -95,10 +95,11 @@ describe.runIf(SHOULD_RUN)('integration: ticket lifecycle (real Postgres)', () =
     expect(reopened.ok).toBe(true);
     if (reopened.ok) expect(reopened.value.status).toBe(TicketStatus.claimed);
 
-    const events = await env.db.ticketEvent.findMany({
-      where: { ticketId: opened.value.id },
-      orderBy: { createdAt: 'asc' },
-    });
+    const events = await env.db
+      .select()
+      .from(schema.ticketEvent)
+      .where(eq(schema.ticketEvent.ticketId, opened.value.id))
+      .orderBy(asc(schema.ticketEvent.createdAt));
     expect(events.map((e) => e.type)).toEqual(['opened', 'claimed', 'closed', 'reopened']);
   });
 
@@ -120,9 +121,16 @@ describe.runIf(SHOULD_RUN)('integration: ticket lifecycle (real Postgres)', () =
     });
     expect(result.ok).toBe(true);
 
-    const ticketGone = await env.db.ticket.findUnique({ where: { id: opened.value.id } });
-    expect(ticketGone).toBeNull();
-    const events = await env.db.ticketEvent.findMany({ where: { ticketId: opened.value.id } });
+    const [ticketGone] = await env.db
+      .select()
+      .from(schema.ticket)
+      .where(eq(schema.ticket.id, opened.value.id))
+      .limit(1);
+    expect(ticketGone).toBeUndefined();
+    const events = await env.db
+      .select()
+      .from(schema.ticketEvent)
+      .where(eq(schema.ticketEvent.ticketId, opened.value.id));
     expect(events).toHaveLength(0); // cascade
 
     expect(gateway.callsOf('postModlogSummary')).toHaveLength(1);
@@ -140,18 +148,22 @@ describe.runIf(SHOULD_RUN)('integration: ticket lifecycle (real Postgres)', () =
     expect(okCount).toBe(1);
     expect(errCount).toBe(1);
 
-    const rows = await env.db.ticket.findMany({
-      where: {
-        guildId: 'g-int',
-        openerId: 'u-int-RACE',
-        status: { in: [TicketStatus.open, TicketStatus.claimed] },
-      },
-    });
+    const rows = await env.db
+      .select()
+      .from(schema.ticket)
+      .where(
+        and(
+          eq(schema.ticket.guildId, 'g-int'),
+          eq(schema.ticket.openerId, 'u-int-RACE'),
+          inArray(schema.ticket.status, [TicketStatus.open, TicketStatus.claimed]),
+        ),
+      );
     expect(rows).toHaveLength(1);
   });
 
   it('NotFoundError when panelId does not exist; no rows written', async () => {
-    const before = await env.db.ticket.count();
+    const [beforeRow] = await env.db.select({ value: count() }).from(schema.ticket);
+    const before = beforeRow?.value ?? 0;
     const result = await ticket.openTicket({
       guildId: 'g-int',
       openerId: 'u-int-NOPE',
@@ -160,7 +172,8 @@ describe.runIf(SHOULD_RUN)('integration: ticket lifecycle (real Postgres)', () =
       typeId: 'whatever',
     });
     expect(result.ok).toBe(false);
-    const after = await env.db.ticket.count();
+    const [afterRow] = await env.db.select({ value: count() }).from(schema.ticket);
+    const after = afterRow?.value ?? 0;
     expect(after).toBe(before);
   });
 });
