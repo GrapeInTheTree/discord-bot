@@ -408,14 +408,28 @@ infra/
 
 ## 8. 진행 상황
 
-**현재 상태 (2026-04-30 — Drizzle 마이그레이션 ✅ 완료):**
+**현재 상태 (2026-05-01 — 1차 MVP ✅ 완료, 1차 서빙 GO):**
 
 - ✅ **Phase 0+1+2 (Bootstrap + Tickets MVP + Dashboard MVP)** — 9 PR + post-fix 7 commits.
 - ✅ **첫 production VM 배포** (2026-04-29): `community-bot.namusunmul.com` (Daniel 개인 GCP VM). `Sunmul Bot` Discord application. ticket #3까지 E2E 검증.
-- ✅ **Drizzle 마이그레이션** (2026-04-30): Prisma 7 → Drizzle 0.45 9 PR로 완전 교체. P2028 driver-adapter regression + orphan-channel rollback path + cuid v1 deprecation 모두 해소. 175 unit + 5 integration green. 자세한 PR 시퀀스는 아래.
-- 🚧 **PM 검증** (대기): PM Discord 계정으로 `https://community-bot.namusunmul.com` OAuth → guild picker → dashboard CRUD. 봇이 PM 길드에 invite돼야 picker에 뜸.
-- 🚧 **새 production application 셋업** (2026-04-30 진행 중): 기존 Sunmul Bot 내리고 fresh Discord application + 같은 VM에 새로 배포 — 토큰/secret 갈이 + redirect URI 재설정.
-- 🚧 **회사 도메인 + 팀 GCP 배포**: namusunmul 흐름 그대로. 팀 결정 대기.
+- ✅ **Drizzle 마이그레이션** (2026-04-30): Prisma 7 → Drizzle 0.45 9 PR로 완전 교체. P2028 driver-adapter regression + orphan-channel rollback path + cuid v1 deprecation 모두 해소. 자세한 PR 시퀀스는 아래.
+- ✅ **Discord application rename** (2026-04-30): `Sunmul Bot` → `Fannie`. Application name + Bot user username 둘 다 갱신 (Discord에선 분리된 필드). 토큰 그대로, 코드/배포 변화 0. dashboard `/healthz` + lifecycle E2E 정상.
+- ✅ **Repost-to-channel + Welcome preview + Markdown hints** (2026-04-30, `52369a7` + `caa20d5`): panel detail 페이지에 "Repost" 버튼 — 기존 Discord 메시지 drop + 채널 최하단에 새로 게시 (DB row + types + 열린 ticket 보존). TicketTypeForm에 live welcome embed preview (Discord markdown subset 인라인 렌더링: bold/italic/underline/strike/code/code-block/link/quote/h1-h3). 모든 markdown-지원 필드에 `MarkdownHint` 헬퍼 텍스트.
+- ✅ **테스트 누계 (최종)**: tickets-core 101 + bot 31 + dashboard 58 + integration 5 = **195 green**
+- ✅ **3-place 문서 sync** (2026-05-01): CLAUDE.md / 메모리 / vault 모두 1차 MVP closeout 반영
+- 🚧 **PM 본격 검증** (대기 — 1차 서빙 후 1주 누적): 실사용 시나리오로 dashboard + Discord 양쪽 만져보기. 피드백 모아 다음 sprint 우선순위
+- 🚧 **회사 도메인 + 팀 GCP 배포**: namusunmul 흐름 그대로. `bot-dashboard.fanx.xyz` 또는 팀 결정 서브도메인. 팀 DNS 회신 대기
+
+**1차 MVP 정의 (이 시점에서 완료된 범위):**
+
+- Tickets: open / claim / close / reopen / delete (Discord button + slash command)
+- Multi-type panel (1 panel = N type 버튼, operator slash CRUD)
+- Web dashboard: panels CRUD / ticket types CRUD / tickets read-only + event timeline / settings
+- Discord OAuth + Manage Guild 권한 게이트
+- White-label (BOT_NAME / BOT_BRAND_COLOR / BOT_FOOTER_TEXT 등 env 주입)
+- Production self-host (docker compose + nginx + certbot, 단일 VM)
+- Drizzle ORM + interactive transaction 신뢰성 (advisory lock 복원)
+- Operator UX: panel preview / welcome preview / markdown hints / repost button
 
 **Drizzle 마이그레이션 PR 시퀀스 (2026-04-30):**
 
@@ -430,6 +444,14 @@ infra/
 | PR-6  | `5e55ad7` | `@prisma/*` deps + `prisma/` 폴더 + `src/generated/` + `client.ts` (Prisma) 완전 제거. lockfile 4 packages 줄어듬  |
 | PR-7  | `1b18a7b` | advisory lock 복원 + openTicket DB-first reorder. orphan-channel rollback 경로 영구 제거                           |
 | PR-8  | `41f4a3e` | cuid v1 → @paralleldrive/cuid2 (deprecation 해소). 기존 row v1 ID 그대로 (collision-free)                          |
+
+**1차 MVP closeout PRs (2026-04-30 ~ 2026-05-01):**
+
+| Commit    | 내용                                                                                                                                                                                                    |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `0176aa9` | docs(core): CLAUDE.md sync with drizzle migration                                                                                                                                                       |
+| `52369a7` | feat(tickets): repost-to-channel button + welcome preview + markdown hints. Panel detail "Repost" 버튼, TicketTypeForm에 live preview, MarkdownHint 컴포넌트. 175 → 191 tests                           |
+| `caa20d5` | fix(tickets): render headings in welcome preview + isolate code blocks. `## H2` 등 미처리 fix + stash-and-restore로 코드 블록 격리 (XSS 안전 + 정확한 markdown 의미). +15 unit (markdown renderer 검증) |
 
 **기존 Phase 정보 (legacy):**
 
@@ -481,17 +503,18 @@ infra/
 
 PM/운영자 요청 들어오거나 정식 Phase 1.1 마감 시 PR-7로 묶어서.
 
-**다음 할 일:**
+**다음 할 일 (1차 MVP 이후):**
 
-1. **새 Discord application 셋업 (2026-04-30 진행 중)** — 기존 `Sunmul Bot` 내리고 fresh application 등록 → token/client secret 갈이 → VM의 `apps/{bot,dashboard}/.env` 업데이트 → redirect URI 재등록 → `./infra/deploy.sh`. Drizzle 마이그레이션이 쌓여있어 새 image swap도 함께 (PR-5 Dockerfile entrypoint = `tini -- node dist/index.js`, runMigrations가 boot에서 schema 적용)
-2. **PM 검증** — 새 application 배포 후 PM Discord 계정으로 OAuth → guild picker → panel/type CRUD 끝까지 돌려보기
-3. **Phase 3 (Moderation + AutoMod)** — warn/mute/kick/ban + native AutoMod hook + dashboard 모더레이션 페이지
+1. **PM 본격 검증** — `community-bot.namusunmul.com`에서 1차 서빙 시작. PM이 실 사용 시나리오 (panel 만들기, ticket type 추가, 사용자가 ticket 열고 닫고, dashboard에서 settings 변경 등) 1주일 누적. 피드백 모아 다음 sprint 우선순위
+2. **회사 도메인 + 팀 GCP 배포** — `bot-dashboard.fanx.xyz` 또는 팀 결정 서브도메인. namusunmul 흐름 그대로. 팀 DNS 회신 + GCP 프로젝트 결정 후 진행
+3. **Phase 1.1 (PM 요청 시)** — Transcript on delete / `/add` / `/remove` / `/transfer` (vault `02_implementation/07-ticket-backlog.md`)
+4. **Phase 3 (Moderation + AutoMod)** — warn / mute / kick / ban / softban + Discord 네이티브 AutoMod hook + dashboard 모더레이션 페이지. dashboard 검증 후
 
 **막힌 것 / 대기 중:**
 
-- (운영) `bot-dashboard.fanx.xyz` DNS 레코드 설정 — 팀이 fanx.xyz 도메인 owner라 Daniel이 요청 보낸 후
-- (장기) GCP 프로젝트 ID — 팀 프로젝트로 배포 예정. 현재 로컬에서 docker compose build로만 검증
-- (Phase 1.1) Transcript / `/add` `/remove` / `/transfer` — PM 요청 시 단일 PR로 묶어서
+- (운영) `bot-dashboard.fanx.xyz` DNS 레코드 — 팀이 fanx.xyz 도메인 owner. Daniel 요청 송신 후 회신 대기. namusunmul 배포가 검증된 흐름이라 도메인만 받으면 즉시 가능
+- (장기) GCP 팀 프로젝트 ID — namusunmul은 Daniel 개인 GCP. 팀 프로젝트 받으면 그쪽으로 이전
+- (Phase 1.1) Transcript / `/add` `/remove` / `/transfer` — PM 요청 또는 정식 마감 시 단일 PR
 
 ---
 
