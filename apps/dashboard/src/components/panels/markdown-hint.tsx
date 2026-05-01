@@ -33,7 +33,9 @@ export function MarkdownHint({ variant }: MarkdownHintProps): React.JSX.Element 
       <code className="font-mono">~~strike~~</code>, <code className="font-mono">`code`</code>,{' '}
       <code className="font-mono">```block```</code>,{' '}
       <code className="font-mono">[link](https://…)</code>,{' '}
-      <code className="font-mono">&gt; quote</code>. Use real line breaks for paragraph spacing.
+      <code className="font-mono">&gt; quote</code>, <code className="font-mono"># H1</code> /{' '}
+      <code className="font-mono">## H2</code> / <code className="font-mono">### H3</code>. Use real
+      line breaks for paragraph spacing.
     </p>
   );
 }
