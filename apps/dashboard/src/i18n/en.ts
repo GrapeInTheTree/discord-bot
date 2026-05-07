@@ -21,6 +21,7 @@ export const en = {
     overview: 'Overview',
     panels: 'Panels',
     tickets: 'Tickets',
+    verification: 'Verification',
     settings: 'Settings',
   },
   overview: {

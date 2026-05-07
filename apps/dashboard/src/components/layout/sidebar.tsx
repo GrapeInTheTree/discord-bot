@@ -1,6 +1,6 @@
 'use client';
 
-import { Inbox, LayoutDashboard, Settings, Tag } from 'lucide-react';
+import { Inbox, LayoutDashboard, Settings, ShieldCheck, Tag } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
@@ -18,6 +18,7 @@ const NAV_ITEMS: readonly NavItem[] = [
   { href: '', label: () => t.nav.overview, icon: LayoutDashboard, exact: true },
   { href: '/panels', label: () => t.nav.panels, icon: Tag },
   { href: '/tickets', label: () => t.nav.tickets, icon: Inbox },
+  { href: '/verification', label: () => t.nav.verification, icon: ShieldCheck },
   { href: '/settings', label: () => t.nav.settings, icon: Settings },
 ];
 
