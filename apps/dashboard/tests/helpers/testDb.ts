@@ -17,14 +17,17 @@ import { drizzle as drizzlePglite } from 'drizzle-orm/pglite';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-const MIGRATION_PATH = resolve(__dirname, '../../../../packages/database/drizzle/0000_init.sql');
+const MIGRATION_PATHS = [
+  resolve(__dirname, '../../../../packages/database/drizzle/0000_init.sql'),
+  resolve(__dirname, '../../../../packages/database/drizzle/0001_verification.sql'),
+];
 
 let cachedSql: string | undefined;
 
 function loadInitSql(): string {
   if (cachedSql !== undefined) return cachedSql;
-  const raw = readFileSync(MIGRATION_PATH, 'utf-8');
-  cachedSql = raw.replace(/--> statement-breakpoint\n?/g, '');
+  const combined = MIGRATION_PATHS.map((p) => readFileSync(p, 'utf-8')).join('\n');
+  cachedSql = combined.replace(/--> statement-breakpoint\n?/g, '');
   return cachedSql;
 }
 
