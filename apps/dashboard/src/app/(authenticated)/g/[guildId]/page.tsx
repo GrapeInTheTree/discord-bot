@@ -7,6 +7,7 @@ import {
   eq,
   inArray,
   schema,
+  SelfRolesAction,
   TicketStatus,
   VerificationOutcome,
 } from '@hearth/database';
@@ -15,6 +16,9 @@ import {
   CheckCircle2,
   CircleSlash2,
   Inbox,
+  Languages,
+  MinusCircle,
+  PlusCircle,
   Settings as SettingsIcon,
   ShieldCheck,
   Tag,
@@ -37,7 +41,7 @@ const ACTIVITY_LIMIT = 8;
 
 interface ActivityRow {
   readonly id: string;
-  readonly kind: 'ticket' | 'verification';
+  readonly kind: 'ticket' | 'verification' | 'self-roles';
   /** Display label, formatted with i18n template. */
   readonly label: string;
   /** Pre-resolved ticket number / outcome for the icon. */
@@ -50,7 +54,9 @@ interface ActivityRow {
     | 'success'
     | 'wrong'
     | 'already'
-    | 'failed';
+    | 'failed'
+    | 'granted'
+    | 'revoked';
   readonly createdAt: Date;
 }
 
@@ -93,6 +99,19 @@ function formatVerificationEvent(outcome: string): { label: string; icon: Activi
   }
 }
 
+function formatSelfRolesEvent(action: string): { label: string; icon: ActivityRow['icon'] } {
+  switch (action) {
+    case SelfRolesAction.granted:
+      return { label: t.overview.activity.selfRolesGranted, icon: 'granted' };
+    case SelfRolesAction.revoked:
+      return { label: t.overview.activity.selfRolesRevoked, icon: 'revoked' };
+    case SelfRolesAction.noop:
+      return { label: t.overview.activity.selfRolesNoop, icon: 'failed' };
+    default:
+      return { label: action, icon: 'failed' };
+  }
+}
+
 export default async function GuildOverviewPage({
   params,
 }: GuildOverviewPageProps): Promise<React.JSX.Element> {
@@ -110,8 +129,11 @@ export default async function GuildOverviewPage({
     closedTicketsRows,
     verificationPanelsRows,
     verifiedUsersRows,
+    selfRolesPanelsRows,
+    selfRolesActiveHoldersRows,
     recentTicketEvents,
     recentVerificationEvents,
+    recentSelfRolesEvents,
   ] = await Promise.all([
     dbDrizzle
       .select({ value: count() })
@@ -153,6 +175,28 @@ export default async function GuildOverviewPage({
         ),
       ),
     dbDrizzle
+      .select({ value: count() })
+      .from(schema.selfRolesPanel)
+      .where(eq(schema.selfRolesPanel.guildId, guildId)),
+    // Active holders = distinct users with at least one net-positive
+    // role binding across any option of this guild's self-roles
+    // panels. We can't compute "net granted - revoked" in pure SQL
+    // without a window function, so we go for an upper-bound proxy:
+    // distinct(userId) WHERE action='granted'. Re-grants don't inflate
+    // (countDistinct) but users who later revoked are still counted.
+    // Good enough for an overview card; the panel detail page has the
+    // exact audit-log walk.
+    dbDrizzle
+      .select({ value: countDistinct(schema.selfRolesEvent.userId) })
+      .from(schema.selfRolesEvent)
+      .innerJoin(schema.selfRolesPanel, eq(schema.selfRolesPanel.id, schema.selfRolesEvent.panelId))
+      .where(
+        and(
+          eq(schema.selfRolesPanel.guildId, guildId),
+          eq(schema.selfRolesEvent.action, SelfRolesAction.granted),
+        ),
+      ),
+    dbDrizzle
       .select({
         id: schema.ticketEvent.id,
         type: schema.ticketEvent.type,
@@ -178,6 +222,17 @@ export default async function GuildOverviewPage({
       .where(eq(schema.verificationPanel.guildId, guildId))
       .orderBy(desc(schema.verificationEvent.createdAt))
       .limit(ACTIVITY_LIMIT),
+    dbDrizzle
+      .select({
+        id: schema.selfRolesEvent.id,
+        action: schema.selfRolesEvent.action,
+        createdAt: schema.selfRolesEvent.createdAt,
+      })
+      .from(schema.selfRolesEvent)
+      .innerJoin(schema.selfRolesPanel, eq(schema.selfRolesPanel.id, schema.selfRolesEvent.panelId))
+      .where(eq(schema.selfRolesPanel.guildId, guildId))
+      .orderBy(desc(schema.selfRolesEvent.createdAt))
+      .limit(ACTIVITY_LIMIT),
   ]);
 
   const ticketPanels = ticketPanelsRows[0]?.value ?? 0;
@@ -185,8 +240,10 @@ export default async function GuildOverviewPage({
   const closedTickets = closedTicketsRows[0]?.value ?? 0;
   const verificationPanels = verificationPanelsRows[0]?.value ?? 0;
   const verifiedUsers = verifiedUsersRows[0]?.value ?? 0;
+  const selfRolesPanelsCount = selfRolesPanelsRows[0]?.value ?? 0;
+  const selfRolesActiveHolders = selfRolesActiveHoldersRows[0]?.value ?? 0;
 
-  // Merge + sort the two activity streams by createdAt, take the most
+  // Merge + sort the three activity streams by createdAt, take the most
   // recent ACTIVITY_LIMIT. Smaller streams just contribute fewer rows.
   const merged: ActivityRow[] = [
     ...recentTicketEvents.map((e) => {
@@ -197,11 +254,15 @@ export default async function GuildOverviewPage({
       const { label, icon } = formatVerificationEvent(e.outcome);
       return { id: e.id, kind: 'verification' as const, label, icon, createdAt: e.createdAt };
     }),
+    ...recentSelfRolesEvents.map((e) => {
+      const { label, icon } = formatSelfRolesEvent(e.action);
+      return { id: e.id, kind: 'self-roles' as const, label, icon, createdAt: e.createdAt };
+    }),
   ]
     .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
     .slice(0, ACTIVITY_LIMIT);
 
-  const isEmpty = ticketPanels === 0 && verificationPanels === 0;
+  const isEmpty = ticketPanels === 0 && verificationPanels === 0 && selfRolesPanelsCount === 0;
 
   const avatarUrl =
     session.user.avatarHash !== null
@@ -222,8 +283,11 @@ export default async function GuildOverviewPage({
         }
       />
       <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-6 px-8 py-12">
-        {/* KPI grid — primary stats at a glance. Grid wraps on mobile. */}
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+        {/* KPI grid — primary stats at a glance. 7 cards lay out as 2
+            cols on mobile, 4 on md, 7 on xl. Reads horizontally as
+            three logical groups: Tickets (3) · Verification (2) ·
+            Self-roles (2). */}
+        <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-4 xl:grid-cols-7">
           <StatCard
             href={`/g/${guildId}/panels`}
             icon={Tag}
@@ -254,6 +318,19 @@ export default async function GuildOverviewPage({
             icon={CheckCircle2}
             label={t.overview.counts.verifiedUsers}
             value={verifiedUsers}
+            muted
+          />
+          <StatCard
+            href={`/g/${guildId}/self-roles`}
+            icon={Languages}
+            label={t.overview.counts.selfRolesPanels}
+            value={selfRolesPanelsCount}
+          />
+          <StatCard
+            href={`/g/${guildId}/self-roles`}
+            icon={CheckCircle2}
+            label={t.overview.counts.selfRolesActiveHolders}
+            value={selfRolesActiveHolders}
             muted
           />
         </div>
@@ -403,6 +480,20 @@ function ActivityIcon({ icon }: { readonly icon: ActivityRow['icon'] }): React.J
       return (
         <XCircle
           className="h-3.5 w-3.5 text-[color:var(--color-danger,_#ED4245)]"
+          aria-hidden="true"
+        />
+      );
+    case 'granted':
+      return (
+        <PlusCircle
+          className="h-3.5 w-3.5 text-[color:var(--color-success,_#3BA55D)]"
+          aria-hidden="true"
+        />
+      );
+    case 'revoked':
+      return (
+        <MinusCircle
+          className="h-3.5 w-3.5 text-[color:var(--color-fg-muted)]"
           aria-hidden="true"
         />
       );
