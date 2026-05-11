@@ -4,6 +4,7 @@ import type {
   DiscordGateway,
   ModlogEmbed,
   PanelMessagePayload,
+  SelfRolesMessagePayload,
   SendWelcomeMessageInput,
   VerificationMessagePayload,
   WelcomeMessagePayload,
@@ -267,6 +268,78 @@ export class DjsDiscordGateway implements DiscordGateway {
       const guild = await this.client.guilds.fetch(guildId);
       const member = await guild.members.fetch(userId);
       return member.roles.cache.has(roleId);
+    });
+  }
+
+  // ─── Self-roles (DEFI-661) ────────────────────────────────────────────
+
+  public async sendSelfRolesMessage(
+    channelId: string,
+    payload: SelfRolesMessagePayload,
+  ): Promise<{ messageId: string }> {
+    return await this.wrap('sendSelfRolesMessage', async () => {
+      const channel = await this.fetchTextChannel(channelId);
+      const message = await channel.send({
+        ...(payload.content !== undefined ? { content: payload.content } : {}),
+        embeds: payload.embeds as APIEmbed[],
+        components: payload.components as never,
+      });
+      return { messageId: message.id };
+    });
+  }
+
+  public async editSelfRolesMessage(
+    channelId: string,
+    messageId: string,
+    payload: SelfRolesMessagePayload,
+  ): Promise<void> {
+    await this.wrap('editSelfRolesMessage', async () => {
+      const channel = await this.fetchTextChannel(channelId);
+      const message = await channel.messages.fetch(messageId);
+      await message.edit({
+        ...(payload.content !== undefined ? { content: payload.content } : {}),
+        embeds: payload.embeds as APIEmbed[],
+        components: payload.components as never,
+      });
+    });
+  }
+
+  public async deleteSelfRolesMessage(channelId: string, messageId: string): Promise<void> {
+    await this.wrap('deleteSelfRolesMessage', async () => {
+      const channel = await this.fetchTextChannel(channelId);
+      // Swallow 404 / 10008 — operator may have removed the message manually.
+      await channel.messages.delete(messageId).catch(() => undefined);
+    });
+  }
+
+  public async addMessageReactions(
+    channelId: string,
+    messageId: string,
+    emojis: readonly string[],
+  ): Promise<void> {
+    await this.wrap('addMessageReactions', async () => {
+      const channel = await this.fetchTextChannel(channelId);
+      const message = await channel.messages.fetch(messageId);
+      // Sequential rather than parallel: Discord rate-limits reaction
+      // adds, and serial order also matches the operator's configured
+      // option `position` (we receive emojis pre-sorted upstream).
+      for (const emoji of emojis) {
+        // Best-effort per emoji — a single 10014 (unknown emoji) on a
+        // custom emoji shouldn't block the rest of the strip.
+        await message.react(emoji).catch(() => undefined);
+      }
+    });
+  }
+
+  public async removeRoleFromMember(
+    guildId: string,
+    userId: string,
+    roleId: string,
+  ): Promise<void> {
+    await this.wrap('removeRoleFromMember', async () => {
+      const guild = await this.client.guilds.fetch(guildId);
+      const member = await guild.members.fetch(userId);
+      await member.roles.remove(roleId);
     });
   }
 

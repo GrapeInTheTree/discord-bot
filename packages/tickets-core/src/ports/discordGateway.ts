@@ -30,6 +30,16 @@ export interface VerificationMessagePayload {
   readonly components: readonly unknown[];
 }
 
+// Self-roles messages are embed-only — the UI is the bot's pre-added
+// reactions on the message itself, not a component row. Keeping the shape
+// uniform with the other domains keeps gateway implementations symmetrical
+// even though `components` is always empty in practice.
+export interface SelfRolesMessagePayload {
+  readonly content: string | undefined;
+  readonly embeds: readonly APIEmbed[];
+  readonly components: readonly unknown[];
+}
+
 export interface ModlogEmbed {
   readonly title: string;
   readonly fields: readonly {
@@ -140,4 +150,47 @@ export interface DiscordGateway {
    *  re-clicks of a correct verification button into an "already verified"
    *  outcome rather than a redundant Discord write. */
   memberHasRole(guildId: string, userId: string, roleId: string): Promise<boolean>;
+
+  // ─── Self-roles (DEFI-661) ────────────────────────────────────────────
+  // Reaction-based domain — bot posts an embed and pre-adds one reaction
+  // per option so users can tap them to toggle their role membership. The
+  // listener (in apps/bot) routes raw reaction events back to the
+  // self-roles service; this port surfaces only the outbound writes.
+
+  /** Send a self-roles message to a public channel. The bot will follow up
+   *  with addMessageReactions to seed each option's emoji. */
+  sendSelfRolesMessage(
+    channelId: string,
+    payload: SelfRolesMessagePayload,
+  ): Promise<{ messageId: string }>;
+
+  /** Edit an existing self-roles message — used after panel/option edits.
+   *  Reaction seed is managed separately via addMessageReactions; the bot's
+   *  own reactions on a message persist across embed edits. */
+  editSelfRolesMessage(
+    channelId: string,
+    messageId: string,
+    payload: SelfRolesMessagePayload,
+  ): Promise<void>;
+
+  /** Hard-delete a self-roles message. Best-effort — silently swallows
+   *  already-gone messages so the caller doesn't have to branch on 404. */
+  deleteSelfRolesMessage(channelId: string, messageId: string): Promise<void>;
+
+  /** Pre-add reactions to a self-roles message in the given order. Each
+   *  string is either a Unicode codepoint (e.g. '🇺🇸') or the
+   *  `name:id` shape Discord's REST API expects for custom emoji. The bot
+   *  applies them sequentially so the reaction strip respects option
+   *  position. Unknown-emoji errors (10014) are surfaced to the caller. */
+  addMessageReactions(
+    channelId: string,
+    messageId: string,
+    emojis: readonly string[],
+  ): Promise<void>;
+
+  /** Revoke a role from a guild member. Throws DiscordApiError on Manage
+   *  Roles missing, role hierarchy violation, or member fetch failure —
+   *  the service layer catches and maps to a 'noop' audit event so the
+   *  reaction-remove path never throws past the listener. */
+  removeRoleFromMember(guildId: string, userId: string, roleId: string): Promise<void>;
 }

@@ -15,6 +15,9 @@ export type TicketEvent = InferSelectModel<typeof schema.ticketEvent>;
 export type VerificationPanel = InferSelectModel<typeof schema.verificationPanel>;
 export type VerificationOption = InferSelectModel<typeof schema.verificationOption>;
 export type VerificationEvent = InferSelectModel<typeof schema.verificationEvent>;
+export type SelfRolesPanel = InferSelectModel<typeof schema.selfRolesPanel>;
+export type SelfRolesOption = InferSelectModel<typeof schema.selfRolesOption>;
+export type SelfRolesEvent = InferSelectModel<typeof schema.selfRolesEvent>;
 
 // TicketEvent.metadata holds an arbitrary JSON object (column is `jsonb`,
 // nullable). Existing prod rows mix shapes per event type — opened events
@@ -45,3 +48,18 @@ export const VerificationOutcome = {
   roleAssignFailed: 'role_assign_failed',
 } as const;
 export type VerificationOutcome = (typeof VerificationOutcome)[keyof typeof VerificationOutcome];
+
+// Audit action recorded on every self-roles reaction event. Stored as text
+// in SelfRolesEvent.action so adding a new action (e.g. 'rate_limited')
+// later doesn't require a schema migration.
+//   granted — reaction added, role assigned
+//   revoked — reaction removed, role removed
+//   noop    — Discord rejected the role op (perms / hierarchy / unknown
+//             emoji); no role change. The user keeps whatever state they
+//             had before — we never half-apply.
+export const SelfRolesAction = {
+  granted: 'granted',
+  revoked: 'revoked',
+  noop: 'noop',
+} as const;
+export type SelfRolesAction = (typeof SelfRolesAction)[keyof typeof SelfRolesAction];
