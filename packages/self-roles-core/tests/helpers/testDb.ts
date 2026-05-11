@@ -18,6 +18,7 @@ const MIGRATION_PATHS = [
   resolve(__dirname, '../../../database/drizzle/0000_init.sql'),
   resolve(__dirname, '../../../database/drizzle/0001_verification.sql'),
   resolve(__dirname, '../../../database/drizzle/0002_self_roles.sql'),
+  resolve(__dirname, '../../../database/drizzle/0003_self_roles_audit_retention.sql'),
 ];
 
 let cachedSql: string | undefined;
