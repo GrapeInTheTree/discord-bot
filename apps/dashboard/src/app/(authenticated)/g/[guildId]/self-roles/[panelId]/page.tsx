@@ -164,6 +164,7 @@ export default async function SelfRolesDetailPage({
                           panelId={panelId}
                           optionId={o.id}
                           optionLabel={o.label}
+                          optionEmoji={o.emoji}
                         />
                       </div>
                     </li>

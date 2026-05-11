@@ -36,6 +36,8 @@ export const en = {
       closedTickets: 'Closed tickets',
       verificationPanels: 'Verification panels',
       verifiedUsers: 'Verified users',
+      selfRolesPanels: 'Self-roles panels',
+      selfRolesActiveHolders: 'Self-role users',
     },
     sections: {
       activity: 'Recent activity',
@@ -55,6 +57,9 @@ export const en = {
       verificationWrong: 'Wrong answer attempt',
       verificationAlready: 'Re-clicked (already verified)',
       verificationFailed: 'Role assign failed',
+      selfRolesGranted: 'Self-role granted',
+      selfRolesRevoked: 'Self-role revoked',
+      selfRolesNoop: 'Self-role op rejected by Discord',
     },
     quickActions: {
       newTicketPanel: 'New ticket panel',
