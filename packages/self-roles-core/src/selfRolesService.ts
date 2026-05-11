@@ -473,12 +473,12 @@ export class SelfRolesService {
       await this.gateway.assignRoleToMember(panel.guildId, input.userId, option.roleId);
     } catch (error) {
       if (error instanceof DiscordApiError) {
-        await this.recordEvent(panel.id, input.userId, option.id, SelfRolesAction.noop);
+        await this.recordEvent(panel.id, input.userId, option, SelfRolesAction.noop);
         return ok({ action: SelfRolesAction.noop, roleId: option.roleId });
       }
       throw error;
     }
-    await this.recordEvent(panel.id, input.userId, option.id, SelfRolesAction.granted);
+    await this.recordEvent(panel.id, input.userId, option, SelfRolesAction.granted);
     return ok({ action: SelfRolesAction.granted, roleId: option.roleId });
   }
 
@@ -504,12 +504,12 @@ export class SelfRolesService {
       await this.gateway.removeRoleFromMember(panel.guildId, input.userId, option.roleId);
     } catch (error) {
       if (error instanceof DiscordApiError) {
-        await this.recordEvent(panel.id, input.userId, option.id, SelfRolesAction.noop);
+        await this.recordEvent(panel.id, input.userId, option, SelfRolesAction.noop);
         return ok({ action: SelfRolesAction.noop, roleId: option.roleId });
       }
       throw error;
     }
-    await this.recordEvent(panel.id, input.userId, option.id, SelfRolesAction.revoked);
+    await this.recordEvent(panel.id, input.userId, option, SelfRolesAction.revoked);
     return ok({ action: SelfRolesAction.revoked, roleId: option.roleId });
   }
 
@@ -631,16 +631,25 @@ export class SelfRolesService {
     }
   }
 
+  /**
+   * Record an audit event. Snapshots option.label / .emoji / .roleId
+   * onto the row so the event remains readable after the option is
+   * deleted (FK is ON DELETE SET NULL, so optionId may go null but
+   * the snapshot columns stay populated).
+   */
   private async recordEvent(
     panelId: string,
     userId: string,
-    optionId: string,
+    option: Pick<SelfRolesOption, 'id' | 'label' | 'emoji' | 'roleId'>,
     action: SelfRolesAction,
   ): Promise<void> {
     await this.db.insert(schema.selfRolesEvent).values({
       panelId,
       userId,
-      optionId,
+      optionId: option.id,
+      optionLabel: option.label,
+      optionEmoji: option.emoji,
+      optionRoleId: option.roleId,
       action,
     });
   }

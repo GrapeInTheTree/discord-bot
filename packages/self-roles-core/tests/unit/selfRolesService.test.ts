@@ -1,4 +1,4 @@
-import { count, schema, SelfRolesAction } from '@hearth/database';
+import { count, eq, schema, SelfRolesAction } from '@hearth/database';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import {
@@ -870,5 +870,92 @@ describe('SelfRolesService.getOptionHolders (SQL net-count)', () => {
       action: SelfRolesAction.noop,
     });
     expect(await service.getOptionHolders(usOptionId)).toEqual([userOnce]);
+  });
+});
+
+// ─────────────── audit retention across option delete ───────────────
+
+describe('SelfRolesService — audit retention across option delete', () => {
+  let testDb: TestDb;
+  let gateway: FakeDiscordGateway;
+  let service: SelfRolesService;
+  let panelId: string;
+  let messageId: string;
+  let usOptionId: string;
+
+  beforeEach(async () => {
+    testDb = await createTestDb();
+    gateway = new FakeDiscordGateway();
+    service = new SelfRolesService(testDb.db, gateway, branding);
+    const created = await service.createPanel(basePanel);
+    if (!created.ok) throw created.error;
+    panelId = created.value.panel.id;
+    const us = await service.addOption(panelId, optionInput());
+    if (!us.ok) throw us.error;
+    usOptionId = us.value.id;
+    const render = await service.renderPanel(panelId);
+    if (!render.ok) throw render.error;
+    messageId = render.value.messageId;
+  });
+  afterEach(async () => {
+    await testDb.close();
+  });
+
+  it('snapshots option label/emoji/roleId onto every audit row', async () => {
+    await service.handleReactionAdd({
+      messageId,
+      emoji: '🇺🇸',
+      userId: USER_ID,
+      guildId: GUILD_ID,
+    });
+    const events = await testDb.db
+      .select()
+      .from(schema.selfRolesEvent)
+      .where(eq(schema.selfRolesEvent.panelId, panelId));
+    expect(events).toHaveLength(1);
+    expect(events[0]?.optionLabel).toBe('English');
+    expect(events[0]?.optionEmoji).toBe('🇺🇸');
+    expect(events[0]?.optionRoleId).toBe(ROLE_US);
+    expect(events[0]?.optionId).toBe(usOptionId);
+  });
+
+  it('preserves audit rows on option delete via ON DELETE SET NULL', async () => {
+    await service.handleReactionAdd({
+      messageId,
+      emoji: '🇺🇸',
+      userId: USER_ID,
+      guildId: GUILD_ID,
+    });
+    await service.removeOption(usOptionId);
+
+    // Audit row survives — only optionId goes to NULL. Snapshot
+    // columns (label, emoji, roleId) remain populated, so historical
+    // queries can still answer "what role did this user react for
+    // on 2026-05-11?"
+    const events = await testDb.db
+      .select()
+      .from(schema.selfRolesEvent)
+      .where(eq(schema.selfRolesEvent.panelId, panelId));
+    expect(events).toHaveLength(1);
+    expect(events[0]?.optionId).toBeNull();
+    expect(events[0]?.optionLabel).toBe('English');
+    expect(events[0]?.optionEmoji).toBe('🇺🇸');
+    expect(events[0]?.optionRoleId).toBe(ROLE_US);
+    expect(events[0]?.action).toBe(SelfRolesAction.granted);
+  });
+
+  it('still cascades audit rows on panel delete (panel is the retention boundary)', async () => {
+    await service.handleReactionAdd({
+      messageId,
+      emoji: '🇺🇸',
+      userId: USER_ID,
+      guildId: GUILD_ID,
+    });
+    await service.deletePanel(panelId);
+    const events = await testDb.db
+      .select()
+      .from(schema.selfRolesEvent)
+      .where(eq(schema.selfRolesEvent.panelId, panelId));
+    expect(events).toHaveLength(0);
   });
 });
