@@ -473,15 +473,25 @@ infra/
 
 **테스트 누계 (Polish round 후):** tickets-core 101 + verification-core 41 + self-roles-core 39 + bot 31 + dashboard 97 + integration 7 = **316 green**.
 
-**알려진 운영 한계 (backlog):**
+### Quality round (2026-05-11) — backlog 5건 모두 ✅ fix
 
-| #   | 이슈                                                                                            | 우선순위                    |
-| --- | ----------------------------------------------------------------------------------------------- | --------------------------- |
-| 1   | `syncBotReactions` djs 구현체에 단위 테스트 없음 (회귀 위험)                                    | high — 다음 sprint 즉시     |
-| 2   | `getOptionHolders` JS-side aggregation (옵션당 이벤트 5만+에서 메모리 압박)                     | mid — 운영 데이터 누적 전   |
-| 3   | option 삭제 시 audit history 영구 손실 (FK cascade) — `ON DELETE SET NULL` + snapshot 컬럼 필요 | mid — 운영 1년차 전         |
-| 4   | tickets-core gateway port 비대화 (~25 메서드, 3 도메인) — sub-port 분할                         | low — welcome/polls 추가 시 |
-| 5   | `selfRolesService.ts` 600 줄 (panel + option + reaction + audit 한 클래스)                      | low — 운영 안정 후          |
+Polish round 직후 code-design audit에서 식별된 5개 부채를 5개 PR로 모두 해소. main = `d4d77ed`.
+
+| #   | PR  | 제목                                                                   | 핵심                                                                                                                                                                                                                                                                                   |
+| --- | --- | ---------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| #1  | #39 | `test: pure reactionDiff function + 15 unit tests`                     | `syncBotReactions` 내부 cache walk + diff 로직을 `apps/bot/src/services/ports/reactionDiff.ts`의 pure function (`computeReactionDiff`, `reactionKey`)으로 추출. discord.js mock 없이 단위 테스트. 부가 perf 이득: missing emoji만 `.react()` 호출 (이전엔 desired 전부). 15 tests, 3ms |
+| #2  | #40 | `perf: SQL net-count aggregation for getOptionHolders`                 | JS Map → Drizzle `GROUP BY ... HAVING SUM(CASE WHEN ...)` 한 번에. Postgres index-backed, 50k+ event option도 메모리 압박 없음. 6 unit tests                                                                                                                                           |
+| #3  | #41 | `feat: audit retention across option delete (FK SET NULL + snapshots)` | `SelfRolesEvent.optionId` → `ON DELETE SET NULL`. `optionLabel/optionEmoji/optionRoleId` snapshot 컬럼 (write-time 채움). 옵션 삭제 후에도 audit row 보존. Panel cascade는 유지 (panel = retention boundary). Migration 0003                                                           |
+| #4  | #42 | `refactor: split DiscordGateway into Base + 3 domain sub-interfaces`   | `DiscordGateway`(25 methods) → `BaseGateway` + `TicketsGateway` + `VerificationGateway` + `SelfRolesGateway`. 서비스는 narrowest sub-interface만 의존. Composite `DiscordGateway = T & V & S`는 djs impl + fake gateway용으로 유지                                                     |
+| #5  | #43 | `refactor: split SelfRolesService into 3 operation classes`            | 660-line 단일 클래스 → `src/operations/{panel,option,reaction}Operations.ts` 분할 + 170-line facade. 외부 API 무변경 — `services.selfRoles.X` 모든 caller 그대로 작동                                                                                                                  |
+
+**테스트 누계 (Quality round 후):** tickets-core 101 + verification-core 41 + self-roles-core 48 + bot 46 + dashboard 97 + integration 7 = **340 green** (Polish round 후 316 → 340, +24).
+
+**최종 상태:**
+
+- main = `d4d77ed`
+- DEFI-661 풀스택 (5 stacked) + Polish round (3 follow-up) + Quality round (5 backlog fix) = **총 13 PR**
+- 운영 시작 OK — VM 재배포 후 PM 검증 가능 상태. 모든 진단된 부채 해소
 
 **이전 상태 (2026-05-08 — DEFI-658 verification 모듈 ✅ 완료):**
 
