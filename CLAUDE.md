@@ -232,10 +232,14 @@ hearth/
 
 ### Phase 3 — Self Roles + Welcome (D+17~22)
 
-- 버튼/SelectMenu 기반 role menu (reaction roles는 레거시, 미지원)
-- Exclusivity: none/single/multi (min~max)
-- Welcome: 채널 + DM, 변수 치환 (`{user}`, `{server}`, `{membercount}`), autorole
-- ✅ **Verification panel (DEFI-658)** — 1 panel = ≤5 emoji 버튼, 1 정답 → 1 role 부여. button 패턴 (reaction은 레거시 결정 그대로). audit log (`VerificationEvent`)에 outcome (success/wrong_answer/already_verified/role_assign_failed) 기록. dashboard 풀 CRUD + 운영자 슬래시 9 subcommands.
+- Trigger pattern is **domain-by-domain** (supersedes the earlier blanket "reaction roles are legacy" rule):
+  - **Button** for flows that need ephemeral feedback, single-answer clicks, or modal chaining — verification, welcome, moderation.
+  - **Reaction** for multi-select toggles with silent application — self-roles, polls.
+  - The domain service layer stays trigger-agnostic, so the same service handles both styles.
+- Exclusivity (self-roles): none / single / multi (min~max).
+- Welcome: channel + DM with variable substitution (`{user}`, `{server}`, `{membercount}`) + autorole.
+- ✅ **Verification panel** — one panel with up to 5 emoji buttons, one correct answer grants one role. Button pattern. Audit log records the outcome (`success` / `wrong_answer` / `already_verified` / `role_assign_failed`). Full dashboard CRUD plus 9 slash subcommands.
+- 📋 **Self-roles / Language selector** — Reaction pattern. Flag-emoji multi-select; removing a reaction revokes the role. Each option carries its own role. Lives in a new `@hearth/self-roles-core` package that mirrors the verification-core layout.
 
 ### Phase 4 — Leveling + Logging (D+22~30)
 
@@ -436,6 +440,8 @@ infra/
 - ✅ **Overview 페이지 재설계** (2026-05-08, PR #19 `6a8e2a7`) — 3 카드 (panels/open/closed)에서 5 KPI grid (Ticket panels / Active tickets / Closed tickets / Verification panels / Verified users)로 확장. 각 카드 클릭 시 deep page link. "Verified users"는 `countDistinct(userId) WHERE outcome=success`로 unique user 카운트 (re-click 무시). Recent activity feed (combined ticket + verification events, top 8, per-outcome icon으로 scannable). Empty-state "Get started" 카드 (panel 0개일 때만, 3 CTA). 모든 데이터 단일 DB round trip — 봇 다운돼도 빠르게 렌더.
 - 🚧 **운영 길드에 Manage Roles 권한 부여** (수동 step) — Discord Developer Portal에서 봇 권한 비트에 Manage Roles 추가, 기존 길드는 invite URL re-issue 또는 Server Settings → Roles → 봇 role → Permissions에서 수동 부여. `docs/runbook/03-pre-deploy-checklist.md`에 안내.
 - 🚧 **VM 재배포** (대기) — `community-bot.namusunmul.com`은 아직 pre-DEFI-658 코드. SSH 후 `git pull && ./infra/deploy.sh`. 첫 부팅 시 `runMigrations()`가 verification 3 테이블 자동 생성, 다운타임 ~10s.
+- ✅ **Docker build hardening** (PR #21) — A clean VM build surfaced two related issues. The Dockerfile chain never built the new `@hearth/verification-core` workspace package, and the missing `.dockerignore` let host `dist/` directories leak into the image so local builds passed by accident. The fix adds `.dockerignore` (build artefacts, `node_modules`, secrets) and an explicit `pnpm --filter @hearth/<pkg> run build` step. **New workspace packages must update both Dockerfiles in the same PR.**
+- 📋 **Next — Self-roles / Language selector** — Reaction-based domain. New `@hearth/self-roles-core` package + reaction listener + dashboard CRUD, mirrors verification-core (~3,750 LOC, 5 PRs). The closeout commit will ratify §4 Phase 3's domain-by-domain trigger ADR.
 
 **현재 상태 (2026-05-01 — 1차 MVP ✅ 완료, 1차 서빙 GO):**
 
