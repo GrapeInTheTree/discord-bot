@@ -487,10 +487,14 @@ Polish round 직후 code-design audit에서 식별된 5개 부채를 5개 PR로 
 
 **테스트 누계 (Quality round 후):** tickets-core 101 + verification-core 41 + self-roles-core 48 + bot 46 + dashboard 97 + integration 7 = **340 green** (Polish round 후 316 → 340, +24).
 
+### Dashboard modal sweep (2026-05-11, PR #45)
+
+남은 7개 `window.confirm` 호출을 self-roles Polish round의 Dialog primitive 패턴으로 일괄 교체. tickets repost/delete/remove-type + verification repost/delete/remove-option + self-roles delete 모두 같은 form factor: header → bullet 컨텍스트(유지/사라짐) → 파괴적 작업이면 `AlertTriangle` "This cannot be undone" callout → footer Cancel/Confirm. 코드베이스 전체에 `window.confirm` 0건. 단일 commit `48dc8e2`, 7 components, +530/-121 LOC. typecheck/lint/test(97)/build 그린.
+
 **최종 상태:**
 
-- main = `d4d77ed`
-- DEFI-661 풀스택 (5 stacked) + Polish round (3 follow-up) + Quality round (5 backlog fix) = **총 13 PR**
+- main = `48dc8e2`
+- DEFI-661 풀스택 (5 stacked) + Polish round (3 follow-up) + Quality round (5 backlog fix) + Dashboard modal sweep (1) = **총 14 PR**
 - 운영 시작 OK — VM 재배포 후 PM 검증 가능 상태. 모든 진단된 부채 해소
 
 **이전 상태 (2026-05-08 — DEFI-658 verification 모듈 ✅ 완료):**
