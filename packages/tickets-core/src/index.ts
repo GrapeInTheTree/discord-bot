@@ -23,6 +23,7 @@ export type {
   DiscordGateway,
   ModlogEmbed,
   PanelMessagePayload,
+  SelfRolesMessagePayload,
   SendWelcomeMessageInput,
   VerificationMessagePayload,
 } from './ports/discordGateway.js';

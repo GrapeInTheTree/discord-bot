@@ -4,6 +4,7 @@ import type {
   DiscordGateway,
   ModlogEmbed,
   PanelMessagePayload,
+  SelfRolesMessagePayload,
   SendWelcomeMessageInput,
   VerificationMessagePayload,
 } from '../../src/ports/discordGateway.js';
@@ -174,6 +175,49 @@ export class FakeDiscordGateway implements DiscordGateway {
     const key = membershipKey(guildId, userId, roleId);
     const seeded = this.options.memberRoles?.has(key) === true;
     return Promise.resolve(seeded || this.grantedRoles.has(key));
+  }
+
+  public async sendSelfRolesMessage(
+    channelId: string,
+    payload: SelfRolesMessagePayload,
+  ): Promise<{ messageId: string }> {
+    this.record('sendSelfRolesMessage', { channelId, payload });
+    this.maybeThrow('sendSelfRolesMessage');
+    const messageId = this.options.nextMessageId?.() ?? `msg-${String(++this.messageCounter)}`;
+    return Promise.resolve({ messageId });
+  }
+
+  public editSelfRolesMessage(
+    channelId: string,
+    messageId: string,
+    payload: SelfRolesMessagePayload,
+  ): Promise<void> {
+    this.record('editSelfRolesMessage', { channelId, messageId, payload });
+    this.maybeThrow('editSelfRolesMessage');
+    return Promise.resolve();
+  }
+
+  public deleteSelfRolesMessage(channelId: string, messageId: string): Promise<void> {
+    this.record('deleteSelfRolesMessage', { channelId, messageId });
+    this.maybeThrow('deleteSelfRolesMessage');
+    return Promise.resolve();
+  }
+
+  public addMessageReactions(
+    channelId: string,
+    messageId: string,
+    emojis: readonly string[],
+  ): Promise<void> {
+    this.record('addMessageReactions', { channelId, messageId, emojis });
+    this.maybeThrow('addMessageReactions');
+    return Promise.resolve();
+  }
+
+  public removeRoleFromMember(guildId: string, userId: string, roleId: string): Promise<void> {
+    this.record('removeRoleFromMember', { guildId, userId, roleId });
+    this.maybeThrow('removeRoleFromMember');
+    this.grantedRoles.delete(membershipKey(guildId, userId, roleId));
+    return Promise.resolve();
   }
 
   public callsOf(op: string): FakeGatewayCall[] {
