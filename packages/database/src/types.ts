@@ -18,6 +18,9 @@ export type VerificationEvent = InferSelectModel<typeof schema.verificationEvent
 export type SelfRolesPanel = InferSelectModel<typeof schema.selfRolesPanel>;
 export type SelfRolesOption = InferSelectModel<typeof schema.selfRolesOption>;
 export type SelfRolesEvent = InferSelectModel<typeof schema.selfRolesEvent>;
+export type RolePickerPanel = InferSelectModel<typeof schema.rolePickerPanel>;
+export type RolePickerOption = InferSelectModel<typeof schema.rolePickerOption>;
+export type RolePickerEvent = InferSelectModel<typeof schema.rolePickerEvent>;
 
 // TicketEvent.metadata holds an arbitrary JSON object (column is `jsonb`,
 // nullable). Existing prod rows mix shapes per event type — opened events
@@ -63,3 +66,20 @@ export const SelfRolesAction = {
   noop: 'noop',
 } as const;
 export type SelfRolesAction = (typeof SelfRolesAction)[keyof typeof SelfRolesAction];
+
+// Audit action recorded on every role-picker selection event. Stored as
+// text in RolePickerEvent.action.
+//   granted              — option selected, role assigned
+//   revoked              — option de-selected, role removed
+//   role_assign_failed   — Discord rejected the grant (perms / hierarchy)
+//   role_revoke_failed   — Discord rejected the revoke
+// Two failure variants (vs self-roles' single 'noop') because the diff
+// engine knows the direction it tried — operators reading the log
+// benefit from seeing which side failed.
+export const RolePickerAction = {
+  granted: 'granted',
+  revoked: 'revoked',
+  roleAssignFailed: 'role_assign_failed',
+  roleRevokeFailed: 'role_revoke_failed',
+} as const;
+export type RolePickerAction = (typeof RolePickerAction)[keyof typeof RolePickerAction];
