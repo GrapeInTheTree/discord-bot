@@ -1,6 +1,14 @@
 'use client';
 
-import { Inbox, Languages, LayoutDashboard, Settings, ShieldCheck, Tag } from 'lucide-react';
+import {
+  Inbox,
+  Languages,
+  LayoutDashboard,
+  ListChecks,
+  Settings,
+  ShieldCheck,
+  Tag,
+} from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
@@ -38,6 +46,7 @@ const NAV_SECTIONS: readonly NavSection[] = [
       { href: '/tickets', label: () => t.nav.tickets, icon: Inbox },
       { href: '/verification', label: () => t.nav.verification, icon: ShieldCheck },
       { href: '/self-roles', label: () => t.nav.selfRoles, icon: Languages },
+      { href: '/role-picker', label: () => t.nav.rolePicker, icon: ListChecks },
     ],
   },
   {

@@ -23,6 +23,7 @@ export const en = {
     tickets: 'Tickets',
     verification: 'Verification',
     selfRoles: 'Self-roles',
+    rolePicker: 'Role picker',
     settings: 'Settings',
     sectionWorkspace: 'Workspace',
     sectionAccount: 'Account',
