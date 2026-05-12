@@ -274,7 +274,7 @@ export class DjsDiscordGateway implements DiscordGateway {
     });
   }
 
-  // ─── Self-roles (DEFI-661) ────────────────────────────────────────────
+  // ─── Reaction Roles (DEFI-661) ────────────────────────────────────────────
 
   public async sendReactionRolesMessage(
     channelId: string,

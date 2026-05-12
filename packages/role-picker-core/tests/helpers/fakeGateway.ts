@@ -198,7 +198,7 @@ export class FakeDiscordGateway implements DiscordGateway {
     return Promise.resolve();
   }
 
-  // ─── Self-roles (unused here, stubbed) ────────────────────────────
+  // ─── Reaction-roles (unused here, stubbed) ────────────────────────────
 
   public async sendReactionRolesMessage(
     channelId: string,

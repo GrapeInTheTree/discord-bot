@@ -54,7 +54,7 @@ export function RepostReactionRolesButton({
       toast.warning(result.value.discordSyncMessage ?? 'Discord unreachable. Try again.');
       return;
     }
-    toast.success('Self-roles panel reposted to channel');
+    toast.success('Reaction-roles panel reposted to channel');
     router.refresh();
   }
 

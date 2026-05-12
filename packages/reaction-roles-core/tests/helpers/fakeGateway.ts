@@ -219,7 +219,7 @@ export class FakeDiscordGateway implements DiscordGateway {
   }
 
   // Role-picker methods — stubbed here so the composite DiscordGateway
-  // type is satisfied. Self-roles tests don't exercise these; the
+  // type is satisfied. Reaction-roles tests don't exercise these; the
   // role-picker-core package ships its own FakeGateway that records the
   // role-picker side of the seam.
   public async sendRolePickerMessage(

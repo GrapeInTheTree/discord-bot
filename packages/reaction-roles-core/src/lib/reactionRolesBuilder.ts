@@ -4,7 +4,7 @@ import type { APIEmbed } from 'discord-api-types/v10';
 
 import { reactionRoles as i18n } from '../i18n/index.js';
 
-// Self-roles message payload — embed-only, no component row. The UI is the
+// Reaction-roles message payload — embed-only, no component row. The UI is the
 // bot's pre-added reactions on the message itself. Each option contributes
 // one line to the embed body that names the emoji, the label, and the role
 // mention so users can see "what does each flag give me" without clicking.

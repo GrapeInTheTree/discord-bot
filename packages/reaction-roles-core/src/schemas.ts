@@ -10,7 +10,7 @@ import { z } from 'zod';
 const EMBED_TITLE_MAX = 256;
 const EMBED_DESC_MAX = 4000;
 
-// Self-roles options surface as message reactions. Discord caps a single
+// Reaction-roles options surface as message reactions. Discord caps a single
 // message at 20 distinct emoji reactions (REST returns code 30010 on the
 // 21st). We match that hard ceiling — Discord wraps the strip into a
 // second row past ~8 emoji, which is the same behaviour every other

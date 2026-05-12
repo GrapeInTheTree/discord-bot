@@ -1,4 +1,4 @@
-// Self-roles domain logic — services, builder, schemas, i18n.
+// Reaction-roles domain logic — services, builder, schemas, i18n.
 // Imported by both apps/bot (reaction listeners + slash) and
 // apps/dashboard (Server Actions). Reuses the DiscordGateway port from
 // @hearth/tickets-core (single seam for the bot's Discord integration).

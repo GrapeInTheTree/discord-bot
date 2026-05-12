@@ -44,7 +44,7 @@ const client = new SapphireClient({
     GatewayIntentBits.GuildMessageReactions,
     // GatewayIntentBits.MessageContent  ← Phase 1.1 transcript export only
   ],
-  // Self-roles reactions can land on messages that aren't in the cache
+  // Reaction-roles reactions can land on messages that aren't in the cache
   // (e.g. bot restart, reaction on an old message). Partials let
   // discord.js deliver the event with a partial payload that the
   // listener fetches on demand.

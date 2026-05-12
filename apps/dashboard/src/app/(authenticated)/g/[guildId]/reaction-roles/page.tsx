@@ -47,7 +47,7 @@ export default async function ReactionRolesListPage({
       <Topbar
         username={session.user.username}
         avatarUrl={avatarUrl}
-        title="Self-roles"
+        title="Reaction Roles"
         description="Reaction-based panels — users add a flag to gain a role, remove to give it back."
         action={
           <Button asChild>
