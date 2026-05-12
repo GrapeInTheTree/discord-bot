@@ -63,27 +63,43 @@ export function RolePickerOptionForm({
 
   async function onSubmit(values: FormValues): Promise<void> {
     try {
-      // Strip empty optional strings → undefined so the action's null-vs-omit
-      // semantics stay clean (the bot's edit path treats undefined as
-      // "leave column alone" and null as "clear it").
-      const cleaned: FormValues = {
-        ...values,
-        description:
-          values.description !== undefined && values.description !== ''
-            ? values.description
-            : undefined,
-        emoji: values.emoji !== undefined && values.emoji !== '' ? values.emoji : undefined,
-      };
+      const isBlank = (v: string | undefined): boolean => v === undefined || v === '';
 
+      // Edit vs add diverge on how to encode "user left this optional field
+      // blank":
+      //   - Add — there's no prior state, so blank means "don't set"
+      //     (undefined). The DB inserts NULL by default.
+      //   - Edit — blank means "clear what's there" (null). undefined would
+      //     be treated by the server action as "no change," which would
+      //     keep the old value — exactly the bug we're fixing here.
+      // The edit schema accepts `null | string | undefined`; the add
+      // schema only accepts `string | undefined`. Split the call so the
+      // payload type matches each contract without lying via casts.
       const result =
         initial !== undefined
           ? await updateRolePickerOption({
               guildId,
               panelId,
               optionId: initial.optionId,
-              input: cleaned,
+              input: {
+                label: values.label,
+                roleId: values.roleId,
+                position: values.position,
+                description: isBlank(values.description) ? null : values.description,
+                emoji: isBlank(values.emoji) ? null : values.emoji,
+              },
             })
-          : await addRolePickerOption({ guildId, panelId, input: cleaned });
+          : await addRolePickerOption({
+              guildId,
+              panelId,
+              input: {
+                label: values.label,
+                roleId: values.roleId,
+                position: values.position,
+                ...(isBlank(values.description) ? {} : { description: values.description }),
+                ...(isBlank(values.emoji) ? {} : { emoji: values.emoji }),
+              },
+            });
 
       if (!result.ok) {
         toast.error(result.error.message);
