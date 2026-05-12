@@ -7,6 +7,12 @@ import { handleHealthz } from './routes/healthz.js';
 import { handlePanelDelete, handlePanelRender, handlePanelRepost } from './routes/panels.js';
 import { handleResolve } from './routes/resolve.js';
 import {
+  handleRolePickerDelete,
+  handleRolePickerRender,
+  handleRolePickerRepost,
+  handleRolePickerRevokeHolders,
+} from './routes/role-picker.js';
+import {
   handleSelfRolesDelete,
   handleSelfRolesRender,
   handleSelfRolesRepost,
@@ -161,6 +167,45 @@ function matchRoute(
     return {
       requireAuth: true,
       handle: async () => handleSelfRolesRevokeHolders(ctx, panelId, optionId, res),
+    };
+  }
+
+  // ── role-picker (StringSelectMenu) ──
+  const rolePickerRenderMatch = /^\/internal\/role-picker\/([^/]+)\/render$/.exec(pathname);
+  if (method === 'POST' && rolePickerRenderMatch !== null) {
+    const [, panelId] = rolePickerRenderMatch;
+    if (panelId === undefined) return null;
+    return {
+      requireAuth: true,
+      handle: async () => handleRolePickerRender(ctx, panelId, res),
+    };
+  }
+  const rolePickerRepostMatch = /^\/internal\/role-picker\/([^/]+)\/repost$/.exec(pathname);
+  if (method === 'POST' && rolePickerRepostMatch !== null) {
+    const [, panelId] = rolePickerRepostMatch;
+    if (panelId === undefined) return null;
+    return {
+      requireAuth: true,
+      handle: async () => handleRolePickerRepost(ctx, panelId, res),
+    };
+  }
+  const rolePickerDeleteMatch = /^\/internal\/role-picker\/([^/]+)$/.exec(pathname);
+  if (method === 'DELETE' && rolePickerDeleteMatch !== null) {
+    const [, panelId] = rolePickerDeleteMatch;
+    if (panelId === undefined) return null;
+    return {
+      requireAuth: true,
+      handle: async () => handleRolePickerDelete(ctx, panelId, res),
+    };
+  }
+  const rolePickerRevokeHoldersMatch =
+    /^\/internal\/role-picker\/([^/]+)\/options\/([^/]+)\/revoke-holders$/.exec(pathname);
+  if (method === 'POST' && rolePickerRevokeHoldersMatch !== null) {
+    const [, panelId, optionId] = rolePickerRevokeHoldersMatch;
+    if (panelId === undefined || optionId === undefined) return null;
+    return {
+      requireAuth: true,
+      handle: async () => handleRolePickerRevokeHolders(ctx, panelId, optionId, res),
     };
   }
 

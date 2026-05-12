@@ -1,4 +1,5 @@
 import type { DbDrizzle } from '@hearth/database';
+import type { RolePickerService } from '@hearth/role-picker-core';
 import type { SelfRolesService } from '@hearth/self-roles-core';
 import type { PanelService } from '@hearth/tickets-core';
 import type { VerificationService } from '@hearth/verification-core';
@@ -18,6 +19,7 @@ export interface InternalApiContext {
   readonly panel: PanelService;
   readonly verification: VerificationService;
   readonly selfRoles: SelfRolesService;
+  readonly rolePicker: RolePickerService;
   readonly branding: Branding;
   /** Returns true when the bot's gateway connection is OPEN (used by /healthz). */
   readonly isReady: () => boolean;
