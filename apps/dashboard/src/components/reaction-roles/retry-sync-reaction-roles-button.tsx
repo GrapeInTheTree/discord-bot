@@ -32,7 +32,7 @@ export function RetrySyncReactionRolesButton({
       toast.warning(result.value.discordSyncMessage ?? 'Still failing. Try again later.');
       return;
     }
-    toast.success('Self-roles panel synced to Discord');
+    toast.success('Reaction-roles panel synced to Discord');
     router.refresh();
   }
 

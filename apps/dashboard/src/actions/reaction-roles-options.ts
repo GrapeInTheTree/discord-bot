@@ -80,7 +80,7 @@ export async function addReactionRolesOption(
     with: { options: true },
   });
   if (panel === undefined || panel.guildId !== args.guildId) {
-    return err({ code: 'NOT_FOUND', message: 'Self-roles panel not found.' });
+    return err({ code: 'NOT_FOUND', message: 'Reaction-roles panel not found.' });
   }
   if (panel.options.length >= MAX_OPTIONS_PER_PANEL) {
     return err({
@@ -256,7 +256,7 @@ export async function removeReactionRolesOption(
     .where(eq(schema.reactionRolesPanel.id, args.panelId))
     .limit(1);
   if (panel === undefined || panel.guildId !== args.guildId) {
-    return err({ code: 'NOT_FOUND', message: 'Self-roles panel not found.' });
+    return err({ code: 'NOT_FOUND', message: 'Reaction-roles panel not found.' });
   }
 
   const [option] = await dbDrizzle

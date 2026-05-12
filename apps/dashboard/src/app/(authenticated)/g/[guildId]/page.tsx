@@ -292,7 +292,7 @@ export default async function GuildOverviewPage({
         {/* KPI grid — primary stats at a glance. 7 cards lay out as 2
             cols on mobile, 4 on md, 7 on xl. Reads horizontally as
             three logical groups: Tickets (3) · Verification (2) ·
-            Self-roles (2). */}
+            Reaction-roles (2). */}
         <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-4 xl:grid-cols-7">
           <StatCard
             href={`/g/${guildId}/panels`}

@@ -45,7 +45,7 @@ export interface VerificationMessagePayload {
   readonly components: readonly unknown[];
 }
 
-// Self-roles messages are embed-only — the UI is the bot's pre-added
+// Reaction-roles messages are embed-only — the UI is the bot's pre-added
 // reactions on the message itself, not a component row. Keeping the shape
 // uniform with the other domains keeps gateway implementations symmetrical
 // even though `components` is always empty in practice.

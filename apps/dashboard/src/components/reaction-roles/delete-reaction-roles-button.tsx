@@ -40,7 +40,7 @@ export function DeleteReactionRolesButton({
       setSubmitting(false);
       return;
     }
-    toast.success('Self-roles panel deleted');
+    toast.success('Reaction-roles panel deleted');
     router.push(`/g/${guildId}/reaction-roles`);
     router.refresh();
   }
