@@ -18,3 +18,6 @@ export { verificationEvent, verificationEventRelations } from './verificationEve
 export { selfRolesPanel, selfRolesPanelRelations } from './selfRolesPanel.js';
 export { selfRolesOption, selfRolesOptionRelations } from './selfRolesOption.js';
 export { selfRolesEvent, selfRolesEventRelations } from './selfRolesEvent.js';
+export { rolePickerPanel, rolePickerPanelRelations } from './rolePickerPanel.js';
+export { rolePickerOption, rolePickerOptionRelations } from './rolePickerOption.js';
+export { rolePickerEvent, rolePickerEventRelations } from './rolePickerEvent.js';
