@@ -39,6 +39,14 @@ const EMOJI_PATTERN = /^(?:<a?:[A-Za-z0-9_]{2,32}:\d{17,20}>|.{1,32})$/u;
 // purely on the form side — no migration required.
 const SELECTION_MODE_VALUES = ['single', 'multi'] as const;
 
+// Forms render optional text inputs as `""` when blank — not `undefined`.
+// `.optional()` only matches the literal undefined, so an `.optional()`
+// chain followed by `.min(1)` rejects the empty string with a confusing
+// "must contain at least 1 character" error on a field labelled
+// "(optional)". Preprocess `""` → `undefined` so the chain reads as
+// the operator expects: empty stays optional, present is validated.
+const emptyAsUndefined = (v: unknown): unknown => (v === '' ? undefined : v);
+
 /** `/rolepicker create` (or dashboard "New role-picker panel" form) input. */
 export const RolePickerPanelInputSchema = z.object({
   guildId: SnowflakeSchema,
@@ -69,8 +77,11 @@ export type RolePickerPanelEdit = z.infer<typeof RolePickerPanelEditSchema>;
  *  role grant. */
 export const RolePickerOptionInputSchema = z.object({
   label: z.string().min(1).max(LABEL_MAX),
-  description: z.string().min(1).max(DESCRIPTION_MAX).optional(),
-  emoji: z.string().regex(EMOJI_PATTERN, 'invalid emoji').optional(),
+  description: z.preprocess(emptyAsUndefined, z.string().min(1).max(DESCRIPTION_MAX).optional()),
+  emoji: z.preprocess(
+    emptyAsUndefined,
+    z.string().regex(EMOJI_PATTERN, 'invalid emoji').optional(),
+  ),
   roleId: SnowflakeSchema,
   position: z
     .number()
@@ -83,8 +94,14 @@ export type RolePickerOptionInput = z.infer<typeof RolePickerOptionInputSchema>;
 /** Edit subset — all fields optional. */
 export const RolePickerOptionEditSchema = z.object({
   label: z.string().min(1).max(LABEL_MAX).optional(),
-  description: z.string().min(1).max(DESCRIPTION_MAX).nullable().optional(),
-  emoji: z.string().regex(EMOJI_PATTERN, 'invalid emoji').nullable().optional(),
+  description: z.preprocess(
+    emptyAsUndefined,
+    z.string().min(1).max(DESCRIPTION_MAX).nullable().optional(),
+  ),
+  emoji: z.preprocess(
+    emptyAsUndefined,
+    z.string().regex(EMOJI_PATTERN, 'invalid emoji').nullable().optional(),
+  ),
   roleId: SnowflakeSchema.optional(),
   position: z
     .number()
