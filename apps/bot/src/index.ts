@@ -100,6 +100,7 @@ try {
       panel: diContainer.services.panel,
       verification: diContainer.services.verification,
       selfRoles: diContainer.services.selfRoles,
+      rolePicker: diContainer.services.rolePicker,
       branding,
       isReady: () => client.isReady(),
     },

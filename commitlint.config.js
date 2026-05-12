@@ -16,6 +16,7 @@ export default {
         'automod',
         'verification',
         'self-roles',
+        'role-picker',
         // technical scopes
         'core',
         'config',

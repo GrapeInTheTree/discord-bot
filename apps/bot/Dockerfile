@@ -21,6 +21,7 @@ COPY packages/database/package.json ./packages/database/
 COPY packages/tickets-core/package.json ./packages/tickets-core/
 COPY packages/verification-core/package.json ./packages/verification-core/
 COPY packages/self-roles-core/package.json ./packages/self-roles-core/
+COPY packages/role-picker-core/package.json ./packages/role-picker-core/
 COPY packages/eslint-config/package.json ./packages/eslint-config/
 COPY packages/tsconfig/package.json ./packages/tsconfig/
 
@@ -47,6 +48,7 @@ RUN pnpm --filter @hearth/database run db:generate; \
     pnpm --filter @hearth/tickets-core run build && \
     pnpm --filter @hearth/verification-core run build && \
     pnpm --filter @hearth/self-roles-core run build && \
+    pnpm --filter @hearth/role-picker-core run build && \
     pnpm --filter @hearth/bot run build
 
 # Deploy bot with prod-only deps to /out. --legacy is required since
