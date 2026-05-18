@@ -78,21 +78,39 @@ export function buildRolePickerPayload(
   };
 }
 
+// Exactly ONE Recommended-for-General-Interchange emoji grapheme:
+// covers simple emoji (😀), regional-indicator flag pairs (🇰🇷), and
+// ZWJ sequences (👨‍👩‍👧) as a single match — but NOT two concatenated
+// flags (🇧🇷🇵🇹) or arbitrary text. Discord's StringSelectMenu option
+// `emoji.name` accepts a single unicode emoji only; anything else makes
+// Discord reject the *entire* message (50035), so a single bad option
+// would otherwise wipe the whole panel. The zod schema blocks this at
+// input time too, but the builder stays defensive for any pre-existing
+// rows the loose old pattern (.{1,32}) let through.
+// Built via `new RegExp` rather than a literal: the `v` (unicodeSets)
+// flag + `\p{RGI_Emoji}` is ES2024 and TS flags the literal form
+// (TS1501) under our pre-es2024 target. The runtime is Node 22 which
+// supports it; `new RegExp` skips TS's static flag check without a
+// repo-wide tsconfig target bump.
+const SINGLE_EMOJI = new RegExp('^\\p{RGI_Emoji}$', 'v');
+
 // `<a?:name:id>` → APIMessageComponentEmoji `{id, name, animated?}`.
-// Unicode emoji → `{name}` (id omitted). Empty / null → undefined so
-// the caller can omit the field entirely. With exactOptionalPropertyTypes,
-// we must omit keys we don't want rather than passing `undefined`.
+// Single unicode emoji → `{name}` (id omitted). Anything else (null,
+// empty, multi-emoji, text) → undefined so the caller omits the field
+// entirely and that option simply renders without an emoji rather than
+// breaking the panel. With exactOptionalPropertyTypes, we must omit
+// keys we don't want rather than passing `undefined`.
 function parseEmoji(raw: string | null): APIMessageComponentEmoji | undefined {
   if (raw === null || raw.length === 0) return undefined;
   const match = /^<(a?):([A-Za-z0-9_]{2,32}):(\d{17,20})>$/.exec(raw);
   if (match !== null) {
     const [, animated, name, id] = match;
-    if (id === undefined || name === undefined) return { name: raw };
+    if (id === undefined || name === undefined) return undefined;
     return {
       id,
       name,
       ...(animated === 'a' ? { animated: true } : {}),
     };
   }
-  return { name: raw };
+  return SINGLE_EMOJI.test(raw) ? { name: raw } : undefined;
 }

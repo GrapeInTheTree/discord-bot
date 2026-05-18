@@ -28,11 +28,20 @@ const DESCRIPTION_MAX = 100;
 // caps it at 150 chars.
 const PLACEHOLDER_MAX = 150;
 
-// Same emoji pattern as reaction-roles. Unicode or `<a?:name:id>`. The
-// service stores the raw string; the djs gateway parses the
-// `<a?:name:id>` form into `{id, name, animated}` for the
-// StringSelectMenuOption.
-const EMOJI_PATTERN = /^(?:<a?:[A-Za-z0-9_]{2,32}:\d{17,20}>|.{1,32})$/u;
+// A custom emoji `<a?:name:id>` OR exactly one unicode emoji grapheme
+// (`\p{RGI_Emoji}` matches simple emoji, flag pairs, and ZWJ sequences
+// as a single unit). The old pattern's `.{1,32}` accepted ANY 1-32
+// chars — so a concatenated double flag like 🇧🇷🇵🇹 or plain text slipped
+// through, and Discord then rejected the whole StringSelectMenu (50035),
+// taking the entire panel's message down. This bounds the input to what
+// Discord's option `emoji` field actually accepts. The service still
+// stores the raw string; the djs gateway parses the custom form into
+// `{id, name, animated}`.
+// `new RegExp` rather than a literal — the `v` flag + `\p{RGI_Emoji}`
+// is ES2024 and TS1501-flags the literal form under our pre-es2024
+// target. Node 22 supports it at runtime; this skips TS's static flag
+// check without a repo-wide tsconfig bump.
+const EMOJI_PATTERN = new RegExp('^(?:<a?:[A-Za-z0-9_]{2,32}:\\d{17,20}>|\\p{RGI_Emoji})$', 'v');
 
 // v1 ships with these locked to 'single' / 1 / 1 in the dashboard form.
 // The schema accepts the broader range so v2 multi-select unlocks

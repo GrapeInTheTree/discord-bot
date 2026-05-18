@@ -96,6 +96,44 @@ describe('buildRolePickerPayload', () => {
     expect(emoji).toEqual({ id: '1234567890123456789', name: 'pepe' });
   });
 
+  it('keeps a single flag / ZWJ emoji unchanged', () => {
+    const out = buildRolePickerPayload(
+      panel(),
+      [
+        option({ id: 'a', emoji: '🇰🇷', position: 0 }),
+        option({ id: 'b', label: 'B', roleId: 'r2', emoji: '👨‍👩‍👧', position: 1 }),
+      ],
+      branding,
+    );
+    const row = out.components[0] as {
+      components: { options: { emoji?: { name: string } }[] }[];
+    };
+    expect(row.components[0]!.options[0]!.emoji).toEqual({ name: '🇰🇷' });
+    expect(row.components[0]!.options[1]!.emoji).toEqual({ name: '👨‍👩‍👧' });
+  });
+
+  it('omits the emoji (option survives) when the value is not a single emoji', () => {
+    // Regression: a concatenated double flag (🇧🇷🇵🇹) or arbitrary text
+    // must NOT reach Discord — it 50035s the whole StringSelectMenu and
+    // wipes the panel. Degrade to no-emoji instead of breaking everything.
+    const out = buildRolePickerPayload(
+      panel(),
+      [
+        option({ id: 'a', label: 'Portuguese', emoji: '🇧🇷🇵🇹', position: 0 }),
+        option({ id: 'b', label: 'Plain text', roleId: 'r2', emoji: 'Korean', position: 1 }),
+      ],
+      branding,
+    );
+    const row = out.components[0] as {
+      components: { options: { label: string; emoji?: unknown }[] }[];
+    };
+    const opts = row.components[0]!.options;
+    // Options still render (panel intact) — they just carry no emoji.
+    expect(opts.map((o) => o.label)).toEqual(['Portuguese', 'Plain text']);
+    expect(opts[0]!.emoji).toBeUndefined();
+    expect(opts[1]!.emoji).toBeUndefined();
+  });
+
   it('omits components entirely when the panel has no options', () => {
     const out = buildRolePickerPayload(panel(), [], branding);
     expect(out.components).toEqual([]);
